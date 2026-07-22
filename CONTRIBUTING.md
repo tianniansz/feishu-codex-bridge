@@ -10,7 +10,7 @@
 - 飞书官方 `lark-cli`
 
 ```powershell
-git clone <repository-url>
+git clone https://github.com/tianniansz/feishu-codex-bridge.git
 cd feishu-codex-bridge
 npm run check
 npm test

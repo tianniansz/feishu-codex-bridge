@@ -20,7 +20,7 @@
 准备一台已能正常使用 Codex Desktop 或 Codex CLI 的 Windows 电脑，然后运行：
 
 ```powershell
-git clone https://github.com/<your-account>/feishu-codex-bridge.git
+git clone https://github.com/tianniansz/feishu-codex-bridge.git
 cd feishu-codex-bridge
 Set-ExecutionPolicy -Scope Process Bypass
 .\setup.ps1

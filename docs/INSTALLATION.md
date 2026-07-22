@@ -12,7 +12,7 @@
 ## 2. 下载项目
 
 ```powershell
-git clone https://github.com/<your-account>/feishu-codex-bridge.git
+git clone https://github.com/tianniansz/feishu-codex-bridge.git
 cd feishu-codex-bridge
 ```
 
