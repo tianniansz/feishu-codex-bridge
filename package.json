@@ -1,0 +1,26 @@
+{
+  "name": "feishu-codex-bridge",
+  "version": "0.1.0",
+  "description": "通过自己的飞书机器人远程续聊本机 Codex Task",
+  "type": "module",
+  "private": false,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "doctor": "node scripts/doctor.mjs",
+    "pairing": "node scripts/pairing.mjs",
+    "pairing:reset": "node scripts/pairing.mjs --reset",
+    "check": "node scripts/check.mjs",
+    "test": "node --test"
+  },
+  "keywords": [
+    "codex",
+    "feishu",
+    "lark",
+    "remote-control",
+    "app-server"
+  ],
+  "license": "MIT"
+}

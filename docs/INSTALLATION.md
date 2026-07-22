@@ -1,0 +1,102 @@
+# 安装指南
+
+## 1. 环境要求
+
+- Windows 10 或 Windows 11
+- Node.js 20 或更高版本
+- 可以正常使用的 Codex Desktop 或 Codex CLI
+- 飞书账号，以及创建企业自建应用的权限
+
+配置向导可以安装 Codex CLI 和飞书官方 `lark-cli`，但不会自动安装 Node.js。
+
+## 2. 下载项目
+
+```powershell
+git clone https://github.com/<your-account>/feishu-codex-bridge.git
+cd feishu-codex-bridge
+```
+
+首次运行可临时允许当前 PowerShell 窗口执行脚本：
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass
+```
+
+## 3. 运行配置向导
+
+```powershell
+.\setup.ps1
+```
+
+向导会依次检查：
+
+1. Node.js 版本。
+2. Codex CLI 是否已安装。
+3. 飞书官方 `lark-cli` 是否已安装。
+4. `lark-cli` Profile 是否可用。
+5. 允许远程操作的项目根目录。
+
+如果指定的 Profile 不存在，向导会运行：
+
+```powershell
+lark-cli config init --new --name codex-bridge --lang zh_cn
+```
+
+按照终端给出的飞书页面完成以下操作：
+
+- 创建企业自建应用
+- 开启机器人能力
+- 授予消息收发和事件订阅所需权限
+- 发布应用
+
+`lark-cli` 的最新安装与配置方式以[官方仓库](https://github.com/larksuite/cli)为准。
+
+## 4. 自检
+
+向导会自动运行，也可以手动执行：
+
+```powershell
+npm run doctor
+```
+
+预期结果：
+
+```text
+✅ Node.js >= 20
+✅ 配置文件
+✅ Codex CLI
+✅ Codex App Server
+✅ lark-cli
+✅ 飞书 Profile
+✅ 工作目录
+⚠️ 飞书配对：待配对
+```
+
+## 5. 启动并配对
+
+向导最后会显示六位配对码。启动服务：
+
+```powershell
+.\start.ps1
+```
+
+向自己的飞书机器人发送：
+
+```text
+pair 123456
+```
+
+收到“配对成功”后发送：
+
+```text
+tasks
+```
+
+## 6. 验收
+
+1. Codex Desktop 中至少存在一个位于允许目录内的 Task。
+2. 飞书发送 `tasks` 能看到该 Task。
+3. 发送 `open 1` 能进入该 Task。
+4. 发送普通文本后能收到 Codex 最终回复。
+
+若失败，请查看[故障排查](TROUBLESHOOTING.md)。
