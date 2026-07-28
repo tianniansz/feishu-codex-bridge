@@ -92,3 +92,16 @@ tokenStatus: not_configured
 - 服务重启后的配对和 Task 恢复。
 
 以上项目必须在有效 lark-cli Profile 配置完成后补测，不能仅凭单元测试判定通过。
+
+## 修复复验
+
+同日完成 P0/P1 修复后，使用模拟 lark-cli ready/EOF 契约的本地进程复验：
+
+- `Path` / `PATH` 重复环境下后台启动成功；
+- `status.ps1` 显示“飞书事件监听已就绪”；
+- `stop.ps1` 触发 stdin EOF，监听以 `reason: signal` 退出；
+- PID、ready、stop 控制文件全部清理；
+- 不可用 Profile 在生成 `.env` 前被拦截；
+- 自动化测试从 12 项增加至 15 项并全部通过。
+
+代码级 P0/P1 已解除。真实飞书消息链路仍需有效 bot Profile 才能完成最终补测。

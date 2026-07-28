@@ -11,10 +11,13 @@ import { DeveloperRouter } from "./core/router.js";
 import { DeveloperSessionStore } from "./core/sessionStore.js";
 import { LarkClient } from "./lark/client.js";
 import { LarkEventRunner } from "./lark/eventRunner.js";
+import { RuntimeControl } from "./runtimeControl.js";
 
 loadDotEnv();
 
 const config = loadConfig();
+const runtimeControl = new RuntimeControl(config.runtimeDir);
+await runtimeControl.initialize();
 const sessionStore = new DeveloperSessionStore(path.join(config.runtimeDir, "sessions.json"));
 const accessStore = new AccessStore(path.join(config.runtimeDir, "access.json"), {
   pairingTtlMs: config.bridge.pairingTtlMs
@@ -39,19 +42,43 @@ const router = new DeveloperRouter({
   taskPageSize: config.bridge.taskPageSize,
   allowCreateTask: config.bridge.allowCreateTask
 });
-const runner = new LarkEventRunner({ config: config.lark, client: larkClient, router, accessStore, eventStore });
+const runner = new LarkEventRunner({
+  config: config.lark,
+  client: larkClient,
+  router,
+  accessStore,
+  eventStore,
+  onReady: () => runtimeControl.markReady()
+});
 
 logger.info("bridge.starting", {
   profile: config.lark.profile,
   workspaceCount: config.bridge.allowedWorkspaceRoots.length
 });
 
-process.on("SIGINT", () => runner.stop());
-process.on("SIGTERM", () => runner.stop());
+let stopping = false;
+function requestStop(reason) {
+  if (stopping) return;
+  stopping = true;
+  logger.info("bridge.stopping", { reason });
+  runner.stop();
+}
+
+runtimeControl.startStopMonitor(
+  () => requestStop("stop-file"),
+  (error) => {
+    logger.error("bridge.runtime_control_failed", { error: error.message });
+    requestStop("runtime-control-error");
+  }
+);
+process.on("SIGINT", () => requestStop("SIGINT"));
+process.on("SIGTERM", () => requestStop("SIGTERM"));
 
 try {
   await runner.start();
 } catch (error) {
   logger.error("bridge.stopped", { error: error.message });
   process.exitCode = 1;
+} finally {
+  await runtimeControl.cleanup();
 }

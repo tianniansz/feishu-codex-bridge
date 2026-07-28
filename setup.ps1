@@ -3,6 +3,7 @@
 $ErrorActionPreference = "Stop"
 $ProjectRoot = (Resolve-Path -LiteralPath $PSScriptRoot).Path
 Set-Location -LiteralPath $ProjectRoot
+. (Join-Path $ProjectRoot "scripts\windows-helpers.ps1")
 
 function Require-Command {
   param([string]$Name, [string]$Guide)
@@ -41,12 +42,19 @@ $NodeMajor = [int]((& node --version).TrimStart("v").Split(".")[0])
 if ($NodeMajor -lt 20) { throw "Node.js 版本过低，需要 20 或更高版本。" }
 
 $Profile = Read-WithDefault "请输入 lark-cli Profile 名称" "codex-bridge"
-& lark-cli --profile $Profile whoami *> $null
-if ($LASTEXITCODE -ne 0) {
-  $Create = Read-WithDefault "Profile 不存在，是否现在创建飞书应用？输入 y 或 n" "y"
-  if ($Create -notmatch "^(y|yes)$") { throw "需要有效的 lark-cli Profile 才能继续。" }
+if (-not (Test-LarkProfile -Profile $Profile)) {
+  Write-Host "Profile '$Profile' 不存在或当前不可用。" -ForegroundColor Yellow
+  $Create = Read-WithDefault "是否现在创建新的飞书应用 Profile？输入 y 或 n" "y"
+  if ($Create -notmatch "^(y|yes)$") {
+    throw "需要有效的 lark-cli Profile。可运行 lark-cli config init --new 后重新执行 setup.ps1。"
+  }
+
+  $Profile = Read-WithDefault "请输入新 Profile 名称" "${Profile}-new"
   & lark-cli config init --new --name $Profile --lang zh_cn
   if ($LASTEXITCODE -ne 0) { throw "飞书应用初始化失败。" }
+  if (-not (Test-LarkProfile -Profile $Profile)) {
+    throw "Profile '$Profile' 仍不可用。请确认飞书应用已开启机器人能力、权限已配置并发布，然后重新运行 setup.ps1。"
+  }
 }
 
 $DefaultWorkspace = (Split-Path -Parent $ProjectRoot)

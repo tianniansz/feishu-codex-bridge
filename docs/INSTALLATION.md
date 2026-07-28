@@ -42,6 +42,8 @@ Set-ExecutionPolicy -Scope Process Bypass
 lark-cli config init --new --name codex-bridge --lang zh_cn
 ```
 
+向导会立即用 bot 身份验证 Profile 的 `available` 状态。不可用时不会提前写入 `.env`，避免到最后一步才失败。
+
 按照终端给出的飞书页面完成以下操作：
 
 - 创建企业自建应用
@@ -90,6 +92,12 @@ pair 123456
 
 ```text
 tasks
+```
+
+后台启动会等待飞书事件监听真正就绪，最长等待 30 秒：
+
+```text
+服务已启动并就绪
 ```
 
 ## 6. 验收

@@ -1,5 +1,7 @@
 ﻿$ProjectRoot = (Resolve-Path -LiteralPath $PSScriptRoot).Path
-$PidFile = Join-Path $ProjectRoot ".runtime\bridge.pid"
+$RuntimeDir = Join-Path $ProjectRoot ".runtime"
+$PidFile = Join-Path $RuntimeDir "bridge.pid"
+$ReadyFile = Join-Path $RuntimeDir "bridge.ready"
 
 if (-not (Test-Path -LiteralPath $PidFile)) {
   Write-Host "服务状态：未运行"
@@ -8,7 +10,11 @@ if (-not (Test-Path -LiteralPath $PidFile)) {
 
 $BridgePid = [int](Get-Content -LiteralPath $PidFile -Raw)
 if (Get-Process -Id $BridgePid -ErrorAction SilentlyContinue) {
-  Write-Host "服务状态：运行中" -ForegroundColor Green
+  if (Test-Path -LiteralPath $ReadyFile) {
+    Write-Host "服务状态：运行中（飞书事件监听已就绪）" -ForegroundColor Green
+  } else {
+    Write-Host "服务状态：启动中（尚未收到飞书事件 ready marker）" -ForegroundColor Yellow
+  }
   Write-Host "PID：$BridgePid"
   exit 0
 }

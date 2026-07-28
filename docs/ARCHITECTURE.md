@@ -39,6 +39,8 @@ flowchart LR
 - `.runtime/access.json`：已配对用户标识
 - `.runtime/sessions.json`：当前 Task 映射
 - `.runtime/*.log`：运行日志
+- `.runtime/bridge.ready`：飞书事件监听已收到 ready marker
+- `.runtime/bridge.stop`：PowerShell 向 Node.js 发出的优雅停止请求
 
 这些文件均不进入 Git。Codex 认证信息仍由 Codex CLI 自己管理。
 
@@ -58,3 +60,7 @@ turn/completed
 ```
 
 项目不启动 WebSocket 监听器，也不把 App Server 暴露到局域网或公网。
+
+## 进程生命周期
+
+后台启动会等待 lark-cli 在 stderr 输出固定 ready marker，Bridge 随后写入 `bridge.ready`。`stop.ps1` 写入 `bridge.stop`，Node.js 检测后关闭 lark-cli stdin，使长期监听以 `reason: signal` 正常退出；仅在 15 秒内无法退出时才强制停止 Node.js。

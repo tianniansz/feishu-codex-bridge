@@ -32,6 +32,12 @@ lark-cli config init --new --name codex-bridge --lang zh_cn
 lark-cli --profile codex-bridge whoami
 ```
 
+Bridge 使用 bot 身份接收和回复消息，请确认以下命令返回 `available: true`：
+
+```powershell
+lark-cli --profile codex-bridge whoami --as bot
+```
+
 ## 机器人收不到消息
 
 检查：
@@ -69,6 +75,8 @@ Get-Content .runtime\bridge.error.log -Tail 100
 ```
 
 不要将日志原样公开提交；日志可能包含本机环境信息。
+
+`start.ps1` 会等待最多 30 秒，只有收到 lark-cli ready marker 才报告成功。若超时，进程会自动停止。`stop.ps1` 默认等待最多 15 秒完成订阅清理，再进行兜底强制停止。
 
 ## Codex 升级后协议不兼容
 

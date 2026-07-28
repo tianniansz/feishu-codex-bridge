@@ -4,12 +4,14 @@ import { logger } from "../logger.js";
 import { windowsCommand } from "./client.js";
 
 export class LarkEventRunner {
-  constructor({ config, client, router, accessStore, eventStore }) {
+  constructor({ config, client, router, accessStore, eventStore, onReady = () => {}, spawnImpl = spawn }) {
     this.config = config;
     this.client = client;
     this.router = router;
     this.accessStore = accessStore;
     this.eventStore = eventStore;
+    this.onReady = onReady;
+    this.spawnImpl = spawnImpl;
     this.child = null;
   }
 
@@ -20,7 +22,7 @@ export class LarkEventRunner {
       "--as", this.config.eventAs
     ];
     const command = windowsCommand(this.config.bin, args);
-    this.child = spawn(command.bin, command.args, { windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
+    this.child = this.spawnImpl(command.bin, command.args, { windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
     this.child.stdout.setEncoding("utf8");
     this.child.stderr.setEncoding("utf8");
 
@@ -38,9 +40,13 @@ export class LarkEventRunner {
     });
     this.child.stderr.on("data", (chunk) => {
       for (const line of chunk.split(/\r?\n/).filter(Boolean)) {
-        if (line.includes("[event] ready event_key=")) {
+        if (!ready && line.includes("[event] ready event_key=")) {
           ready = true;
           logger.info("lark.event.ready", { eventKey: "im.message.receive_v1" });
+          void Promise.resolve(this.onReady()).catch((error) => {
+            logger.error("lark.event.ready_callback_failed", { error: error.message });
+            this.stop();
+          });
           for (const pendingLine of pendingLines.splice(0)) void this.handleLine(pendingLine);
         }
         else logger.info("lark.event.status", { message: line });
