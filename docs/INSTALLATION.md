@@ -7,7 +7,7 @@
 - 可以正常使用的 Codex Desktop 或 Codex CLI
 - 飞书账号，以及创建企业自建应用的权限
 
-配置向导可以安装 Codex CLI 和飞书官方 `lark-cli`，但不会自动安装 Node.js。
+配置向导会检查 Node.js。未安装或版本过低时，会优先询问是否通过 `winget` 安装 Node.js LTS；系统没有 `winget` 时会提供并可打开官方下载页面。向导也可以安装 Codex CLI 和飞书官方 `lark-cli`。
 
 ## 2. 下载项目
 
@@ -35,6 +35,8 @@ Set-ExecutionPolicy -Scope Process Bypass
 3. 飞书官方 `lark-cli` 是否已安装。
 4. `lark-cli` Profile 是否可用。
 5. 允许远程操作的项目根目录。
+
+请等待向导显示“配置完成”后再启动服务。直接运行 `start.ps1` 时，如果 Node.js 尚未安装或 `.env` 尚未生成，脚本会提示先返回配置向导。
 
 如果指定的 Profile 不存在，向导会运行：
 

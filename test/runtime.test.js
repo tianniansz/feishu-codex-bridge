@@ -73,6 +73,20 @@ test("Windows 助手可识别 Profile 状态并规范化启动环境", { skip: p
   assert.equal(result.status, 0, result.stderr || result.stdout);
 });
 
+test("Windows 启动脚本在缺少 Node.js 时返回配置向导提示", { skip: process.platform !== "win32" }, () => {
+  const startPath = path.resolve("start.ps1").replaceAll("'", "''");
+  const powershellPath = path.join(process.env.SystemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+  const script = `$env:Path = 'C:\\__feishu_codex_bridge_missing__'; & '${startPath}'`;
+  const result = spawnSync(powershellPath, ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script], {
+    encoding: "utf8",
+    windowsHide: true
+  });
+
+  assert.equal(result.status, 1, result.stderr || result.stdout);
+  assert.match(result.stdout, /setup\.ps1/);
+  assert.doesNotMatch(result.stderr, /Start-Process/);
+});
+
 function fakeEventProcess() {
   const child = new EventEmitter();
   child.stdin = new PassThrough();

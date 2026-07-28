@@ -9,6 +9,8 @@
 - 修复 Windows `Path` / `PATH` 重复时后台启动失败的问题。
 - 安装向导会在写入配置前验证 bot Profile 是否真正可用。
 - 后台启动等待飞书事件 ready marker，停止时优先通过 stdin EOF 优雅退出。
+- 配置向导可通过 `winget` 安装 Node.js LTS，并在手动安装后自动刷新环境变量继续检测。
+- 启动脚本在 Node.js 缺失或配置未完成时返回明确的向导提示。
 - 增加产品定位、竞品对比和发布前体验验收文档。
 
 本项目遵循 [Semantic Versioning](https://semver.org/)。

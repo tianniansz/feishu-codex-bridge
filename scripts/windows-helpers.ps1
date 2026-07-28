@@ -10,6 +10,16 @@ function Normalize-BridgeProcessPath {
   [Environment]::SetEnvironmentVariable("Path", $CurrentPath, "Process")
 }
 
+function Refresh-BridgeProcessPath {
+  $MachinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+  $UserPath = [Environment]::GetEnvironmentVariable("Path", "User")
+  $Parts = @($MachinePath, $UserPath) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+  if ($Parts.Count -gt 0) {
+    [Environment]::SetEnvironmentVariable("PATH", $null, "Process")
+    [Environment]::SetEnvironmentVariable("Path", ($Parts -join ";"), "Process")
+  }
+}
+
 function Test-LarkWhoamiOutput {
   param([string]$Json)
 

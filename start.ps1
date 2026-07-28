@@ -2,6 +2,16 @@
 
 $ErrorActionPreference = "Stop"
 $ProjectRoot = (Resolve-Path -LiteralPath $PSScriptRoot).Path
+
+if (-not (Get-Command "node" -ErrorAction SilentlyContinue)) {
+  Write-Host "尚未安装 Node.js，服务无法启动。请先运行 .\setup.ps1 完成安装和配置。" -ForegroundColor Red
+  exit 1
+}
+if (-not (Test-Path -LiteralPath (Join-Path $ProjectRoot ".env") -PathType Leaf)) {
+  Write-Host "尚未完成项目配置（缺少 .env）。请先运行 .\setup.ps1。" -ForegroundColor Red
+  exit 1
+}
+
 $RuntimeDir = Join-Path $ProjectRoot ".runtime"
 $PidFile = Join-Path $RuntimeDir "bridge.pid"
 $ReadyFile = Join-Path $RuntimeDir "bridge.ready"

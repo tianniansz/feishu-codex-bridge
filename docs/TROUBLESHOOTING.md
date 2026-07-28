@@ -6,6 +6,16 @@
 npm run doctor
 ```
 
+## 找不到 Node.js
+
+重新运行配置向导：
+
+```powershell
+.\setup.ps1
+```
+
+向导会优先使用 `winget` 安装 Node.js LTS。没有 `winget` 时，按提示从 [Node.js 官网](https://nodejs.org/en/download) 安装；完成后可回到原窗口继续检测。
+
 ## 找不到 Codex CLI
 
 ```powershell

@@ -30,16 +30,58 @@ function Read-WithDefault {
   return $Value.Trim()
 }
 
+function Get-NodeMajorVersion {
+  if (-not (Get-Command "node" -ErrorAction SilentlyContinue)) { return $null }
+  try {
+    return [int]((& node --version).TrimStart("v").Split(".")[0])
+  } catch {
+    return $null
+  }
+}
+
+function Ensure-Node {
+  $NodeMajor = Get-NodeMajorVersion
+  if ($null -ne $NodeMajor -and $NodeMajor -ge 20) { return }
+
+  $Reason = if ($null -eq $NodeMajor) { "未找到 Node.js" } else { "Node.js 版本过低（当前主版本：$NodeMajor）" }
+  Write-Host "$Reason，需要安装 Node.js 20 或更高版本。" -ForegroundColor Yellow
+
+  $Installed = $false
+  if (Get-Command "winget" -ErrorAction SilentlyContinue) {
+    $Answer = Read-WithDefault "是否通过 winget 自动安装 Node.js LTS？输入 y 或 n" "y"
+    if ($Answer -match "^(y|yes)$") {
+      & winget install --id OpenJS.NodeJS.LTS --exact --silent --accept-package-agreements --accept-source-agreements
+      $Installed = $LASTEXITCODE -eq 0
+      Refresh-BridgeProcessPath
+    }
+  }
+
+  $DetectedNodeMajor = Get-NodeMajorVersion
+  if (-not $Installed -or $null -eq $DetectedNodeMajor -or $DetectedNodeMajor -lt 20) {
+    $DownloadUrl = "https://nodejs.org/en/download"
+    Write-Host "无法自动完成安装，请安装 Node.js LTS：$DownloadUrl" -ForegroundColor Yellow
+    $OpenPage = Read-WithDefault "是否打开官方下载页面？输入 y 或 n" "y"
+    if ($OpenPage -match "^(y|yes)$") {
+      try { Start-Process $DownloadUrl } catch { Write-Host "无法打开浏览器，请手动访问上面的地址。" -ForegroundColor Yellow }
+    }
+    Read-Host "安装完成后回到此窗口，按 Enter 继续检测"
+    Refresh-BridgeProcessPath
+  }
+
+  $NodeMajor = Get-NodeMajorVersion
+  if ($null -eq $NodeMajor -or $NodeMajor -lt 20) {
+    throw "仍未检测到 Node.js 20 或更高版本。请完成安装后重新运行 .\setup.ps1。"
+  }
+  Write-Host "Node.js 已就绪：$(& node --version)" -ForegroundColor Green
+}
+
 Write-Host "Feishu Codex Bridge 配置向导" -ForegroundColor Cyan
 Write-Host ""
 
-Require-Command "node" "请安装 Node.js 20 或更高版本。"
+Ensure-Node
 Require-Command "npm" "Node.js 安装不完整，请重新安装 Node.js。"
 Offer-Install "codex" "未找到 Codex CLI，是否通过 npm 安装？输入 y 或 n" { npm install -g @openai/codex }
 Offer-Install "lark-cli" "未找到 lark-cli，是否安装飞书官方 CLI？输入 y 或 n" { npx @larksuite/cli@latest install }
-
-$NodeMajor = [int]((& node --version).TrimStart("v").Split(".")[0])
-if ($NodeMajor -lt 20) { throw "Node.js 版本过低，需要 20 或更高版本。" }
 
 $Profile = Read-WithDefault "请输入 lark-cli Profile 名称" "codex-bridge"
 if (-not (Test-LarkProfile -Profile $Profile)) {
