@@ -107,6 +107,7 @@ Codex App Server 提供会话历史、`thread/resume` 和流式事件等深度�
 - [故障排查](docs/TROUBLESHOOTING.md)
 - [产品定位与竞品对比](docs/PRODUCT_POSITIONING.md)
 - [发布前体验验收](docs/EXPERIENCE_CHECKLIST.md)
+- [首次安装验收报告（2026-07-29）](docs/ACCEPTANCE_REPORT_2026-07-29.md)
 - [贡献指南](CONTRIBUTING.md)
 
 ## 开发
