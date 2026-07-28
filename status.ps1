@@ -1,5 +1,7 @@
 ﻿$ProjectRoot = (Resolve-Path -LiteralPath $PSScriptRoot).Path
-$RuntimeDir = Join-Path $ProjectRoot ".runtime"
+. (Join-Path $ProjectRoot "scripts\windows-helpers.ps1")
+$BridgePaths = Get-BridgeDataPaths -ProjectRoot $ProjectRoot
+$RuntimeDir = $BridgePaths.RuntimeDir
 $PidFile = Join-Path $RuntimeDir "bridge.pid"
 $ReadyFile = Join-Path $RuntimeDir "bridge.ready"
 
@@ -20,5 +22,5 @@ if (Get-Process -Id $BridgePid -ErrorAction SilentlyContinue) {
 }
 
 Write-Host "服务状态：异常退出" -ForegroundColor Red
-Write-Host "请查看 .runtime\bridge.error.log"
+Write-Host "请查看 $RuntimeDir\bridge.error.log"
 exit 1

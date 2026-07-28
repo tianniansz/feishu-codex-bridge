@@ -5,7 +5,7 @@
 在电脑上运行：
 
 ```powershell
-npm run pairing
+feishu-codex-bridge pairing
 ```
 
 将显示的 `pair 123456` 发送给机器人。配对码仅在有限时间内有效。
@@ -13,7 +13,7 @@ npm run pairing
 撤销全部已配对用户：
 
 ```powershell
-npm run pairing:reset
+feishu-codex-bridge pairing --reset
 ```
 
 ## 续聊 Task
@@ -64,7 +64,7 @@ reject A1B2C3    # 拒绝这一次
 
 ## 新建 Task
 
-为了避免误操作，默认关闭。确认需要后，在 `.env` 中配置：
+为了避免误操作，默认关闭。确认需要后，运行 `feishu-codex-bridge config edit` 并配置：
 
 ```env
 ALLOW_CREATE_TASK=true

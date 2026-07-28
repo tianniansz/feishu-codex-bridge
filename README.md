@@ -1,6 +1,6 @@
 # Feishu Codex Bridge
 
-通过自己的飞书机器人，远程查看并续聊自己电脑上已经存在的 Codex Desktop Task。
+通过自己的飞书机器人，远程查看并续聊自己电脑上已经存在的 Codex Task（支持 Desktop 和 CLI）。
 
 项目刻意聚焦于一个场景：**离开电脑后，从飞书安全地接着聊现有 Codex Task**。它不是通用 Coding Agent 网关，也不接管 Codex 账号和凭证。
 
@@ -8,7 +8,7 @@
 
 ## 功能
 
-- 搜索、按项目过滤并分页查看允许目录内的 Codex Desktop Task
+- 搜索、按项目过滤并分页查看允许目录内的 Codex Task
 - 选择并继续已有 Task
 - 查询执行状态、接收节流后的进度和最终结果
 - 在飞书中批准或拒绝 Codex 的命令/文件修改请求
@@ -20,26 +20,31 @@
 
 ## 快速开始
 
-准备一台已能正常使用 Codex Desktop 或 Codex CLI 的 Windows 电脑，然后运行：
+准备一台 Windows 电脑、飞书账号和可用网络，然后运行：
 
 ```powershell
 git clone https://github.com/tianniansz/feishu-codex-bridge.git
 cd feishu-codex-bridge
 Set-ExecutionPolicy -Scope Process Bypass
 .\setup.ps1
-.\start.ps1
+```
+
+`setup.ps1` 会补齐 Node.js，并默认把当前源码打包成全局 CLI。配置完成后，统一使用：
+
+```powershell
+feishu-codex-bridge start
 ```
 
 配置向导会：
 
 1. 检查 Node.js 版本，并优先通过 `winget` 引导安装 Node.js LTS。
-2. 检查并按需安装 Codex CLI 和飞书官方 `lark-cli`。
+2. 检查并按需安装 Codex CLI 和飞书官方 `lark-cli`，并引导完成 Codex 登录。
 3. 引导创建或选择自己的飞书机器人。
 4. 选择允许远程操作的本地项目目录。
-5. 生成仅保存在本机的 `.env`。
+5. 将配置保存到当前用户的 `%LOCALAPPDATA%\FeishuCodexBridge`。
 6. 执行环境自检并生成一次性配对码。
 
-请等待 `setup.ps1` 显示“配置完成”后再运行 `start.ps1`。如果误在配置完成前启动，脚本会提示返回配置向导。
+请等待向导显示“配置完成”后再运行 `feishu-codex-bridge start`。
 
 向机器人发送配对命令后，再发送：
 
@@ -71,14 +76,20 @@ open 1
 ## 本地管理
 
 ```powershell
-.\start.ps1              # 后台启动
-.\start.ps1 -Foreground  # 前台启动，方便调试
-.\status.ps1             # 查看状态
-.\stop.ps1               # 停止服务
-npm run doctor            # 环境自检
-npm run pairing           # 增加一个配对用户
-npm run pairing:reset     # 撤销全部用户并重新配对
+feishu-codex-bridge start               # 后台启动
+feishu-codex-bridge start --foreground  # 前台调试
+feishu-codex-bridge status              # 查看状态
+feishu-codex-bridge logs                # 查看最近日志
+feishu-codex-bridge restart             # 重启
+feishu-codex-bridge stop                # 停止
+feishu-codex-bridge doctor              # 环境自检
+feishu-codex-bridge pairing             # 增加配对用户
+feishu-codex-bridge pairing --reset     # 撤销全部用户并重新配对
+feishu-codex-bridge config edit         # 编辑配置
+feishu-codex-bridge service install     # 登录 Windows 后自动启动
 ```
+
+旧 PowerShell 脚本仍可用于源码开发。npm 公共包尚未发布；当前先通过 `npm pack` 和干净机器完成 beta 验收。
 
 ## 安全默认值
 
@@ -86,7 +97,7 @@ npm run pairing:reset     # 撤销全部用户并重新配对
 - 默认只允许私聊。
 - 默认禁止从飞书新建 Task。
 - 只展示 `ALLOWED_WORKSPACE_ROOTS` 内的 Task。
-- `.env`、运行状态和日志不会进入 Git。
+- 用户配置、运行状态和日志保存在 `%LOCALAPPDATA%\FeishuCodexBridge`，不会进入 Git 或随 npm 升级被覆盖。
 - App Server 仅通过本机 stdio 启动，不监听网络端口。
 - 审批码只对原飞书会话和单次请求有效，不提供远程永久放行。
 
@@ -99,7 +110,7 @@ npm run pairing:reset     # 撤销全部用户并重新配对
 - Codex CLI
 - [飞书官方 lark-cli](https://github.com/larksuite/cli)
 
-Codex App Server 提供会话历史、`thread/resume` 和流式事件等深度集成能力，但 `codex app-server` 命令目前仍标记为 experimental，升级 Codex CLI 后建议先运行 `npm run doctor`。[Codex App Server 文档](https://learn.chatgpt.com/docs/app-server)
+Codex App Server 提供会话历史、`thread/resume` 和流式事件等深度集成能力，但 `codex app-server` 命令目前仍标记为 experimental，升级 Codex CLI 后建议先运行 `feishu-codex-bridge doctor`。[Codex App Server 文档](https://learn.chatgpt.com/docs/app-server)
 
 ## 文档
 
@@ -111,6 +122,7 @@ Codex App Server 提供会话历史、`thread/resume` 和流式事件等深度�
 - [产品定位与竞品对比](docs/PRODUCT_POSITIONING.md)
 - [发布前体验验收](docs/EXPERIENCE_CHECKLIST.md)
 - [首次安装验收报告（2026-07-29）](docs/ACCEPTANCE_REPORT_2026-07-29.md)
+- [npm 包本地验收](docs/NPM_PACKAGE_ACCEPTANCE.md)
 - [贡献指南](CONTRIBUTING.md)
 
 ## 开发

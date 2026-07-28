@@ -23,6 +23,10 @@ await check("配置文件", async () => {
 
 if (config) {
   await check("Codex CLI", async () => (await runCommand(config.codex.bin, ["--version"])).stdout.trim());
+  await check("Codex 登录", async () => {
+    await runCommand(config.codex.bin, ["login", "status"]);
+    return "已登录";
+  });
   await check("Codex App Server", async () => {
     await runCommand(config.codex.bin, ["app-server", "--help"]);
     return "可用";
@@ -43,7 +47,7 @@ if (config) {
   }
   await check("飞书配对", async () => {
     const store = new AccessStore(path.join(config.runtimeDir, "access.json"));
-    return await store.hasAuthorizedUser() ? "已配对" : "待配对（运行 npm run pairing）";
+    return await store.hasAuthorizedUser() ? "已配对" : "待配对（运行 feishu-codex-bridge pairing）";
   }, { warningOnly: true });
 }
 

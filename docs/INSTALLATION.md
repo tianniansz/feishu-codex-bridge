@@ -3,8 +3,8 @@
 ## 1. 环境要求
 
 - Windows 10 或 Windows 11
-- Node.js 20 或更高版本
-- 可以正常使用的 Codex Desktop 或 Codex CLI
+- Node.js 20 或更高版本（未安装时由向导引导安装）
+- Codex Desktop 或 Codex CLI（CLI 缺失或未登录时由向导引导处理）
 - 飞书账号，以及创建企业自建应用的权限
 
 配置向导会检查 Node.js。未安装或版本过低时，会优先询问是否通过 `winget` 安装 Node.js LTS；系统没有 `winget` 时会提供并可打开官方下载页面。向导也可以安装 Codex CLI 和飞书官方 `lark-cli`。
@@ -28,15 +28,18 @@ Set-ExecutionPolicy -Scope Process Bypass
 .\setup.ps1
 ```
 
+源码入口默认执行 `npm pack`，把当前版本安装为全局 `feishu-codex-bridge` 命令，然后自动继续统一配置向导。npm 公共包发布后，已安装 Node.js 的用户可直接使用 `npm install -g <包名>`，无需克隆仓库。
+
 向导会依次检查：
 
 1. Node.js 版本。
 2. Codex CLI 是否已安装。
-3. 飞书官方 `lark-cli` 是否已安装。
-4. `lark-cli` Profile 是否可用。
-5. 允许远程操作的项目根目录。
+3. Codex CLI 是否已登录。
+4. 飞书官方 `lark-cli` 是否已安装。
+5. `lark-cli` Profile 是否可用。
+6. 允许远程操作的项目根目录。
 
-请等待向导显示“配置完成”后再启动服务。直接运行 `start.ps1` 时，如果 Node.js 尚未安装或 `.env` 尚未生成，脚本会提示先返回配置向导。
+请等待向导显示“配置完成”后再启动服务。CLI 模式的配置保存在 `%LOCALAPPDATA%\FeishuCodexBridge\config.env`，日志和状态保存在其 `runtime` 子目录。
 
 如果指定的 Profile 不存在，向导会运行：
 
@@ -60,7 +63,7 @@ lark-cli config init --new --name codex-bridge --lang zh_cn
 向导会自动运行，也可以手动执行：
 
 ```powershell
-npm run doctor
+feishu-codex-bridge doctor
 ```
 
 预期结果：
@@ -81,7 +84,7 @@ npm run doctor
 向导最后会显示六位配对码。启动服务：
 
 ```powershell
-.\start.ps1
+feishu-codex-bridge start
 ```
 
 向自己的飞书机器人发送：
@@ -102,9 +105,17 @@ tasks
 服务已启动并就绪
 ```
 
+需要随当前 Windows 用户登录后自动运行时：
+
+```powershell
+feishu-codex-bridge service install
+```
+
+计划任务必须运行在登录 Codex 的同一 Windows 用户下，不能改为 `SYSTEM`。
+
 ## 6. 验收
 
-1. Codex Desktop 中至少存在一个位于允许目录内的 Task。
+1. Codex Desktop 或 Codex CLI 中至少存在一个位于允许目录内的 Task。
 2. 飞书发送 `tasks` 能看到该 Task。
 3. 发送 `open 1` 能进入该 Task。
 4. 发送普通文本后能收到 Codex 最终回复。

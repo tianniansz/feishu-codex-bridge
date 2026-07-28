@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-export function loadDotEnv(filePath = path.resolve(process.cwd(), ".env")) {
+export function loadDotEnv(filePath = process.env.FEISHU_CODEX_ENV_FILE || path.resolve(process.cwd(), ".env")) {
   if (!fs.existsSync(filePath)) return;
 
   const content = fs.readFileSync(filePath, "utf8");

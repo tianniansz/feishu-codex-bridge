@@ -4,6 +4,8 @@ $ErrorActionPreference = "Stop"
 $ProjectRoot = (Resolve-Path -LiteralPath $PSScriptRoot).Path
 Set-Location -LiteralPath $ProjectRoot
 . (Join-Path $ProjectRoot "scripts\windows-helpers.ps1")
+$BridgePaths = Get-BridgeDataPaths -ProjectRoot $ProjectRoot
+$env:FEISHU_CODEX_ENV_FILE = $BridgePaths.ConfigFile
 
 function Require-Command {
   param([string]$Name, [string]$Guide)
@@ -75,12 +77,58 @@ function Ensure-Node {
   Write-Host "Node.js 已就绪：$(& node --version)" -ForegroundColor Green
 }
 
+function Install-And-RunBridgeCli {
+  $UseCli = Read-WithDefault "是否安装统一管理命令 feishu-codex-bridge？输入 y 或 n" "y"
+  if ($UseCli -notmatch "^(y|yes)$") { return $false }
+
+  $TempDir = [IO.Path]::GetTempPath()
+  $PackOutput = @(& npm.cmd pack --silent --pack-destination $TempDir)
+  if ($LASTEXITCODE -ne 0 -or $PackOutput.Count -eq 0) {
+    throw "CLI 安装包生成失败。"
+  }
+  $PackageFile = Join-Path $TempDir $PackOutput[-1].Trim()
+  try {
+    & npm.cmd install -g $PackageFile
+    if ($LASTEXITCODE -ne 0) { throw "CLI 全局安装失败。" }
+  } finally {
+    Remove-Item -LiteralPath $PackageFile -Force -ErrorAction SilentlyContinue
+  }
+
+  $NpmPrefix = (& npm.cmd prefix -g | Select-Object -Last 1).Trim()
+  $CliCommand = Join-Path $NpmPrefix "feishu-codex-bridge.cmd"
+  if (-not (Test-Path -LiteralPath $CliCommand -PathType Leaf)) {
+    throw "CLI 已安装但未找到命令入口。请重新打开 PowerShell 后运行 feishu-codex-bridge setup。"
+  }
+
+  Write-Host "统一管理命令安装完成，继续进入配置向导。" -ForegroundColor Green
+  & $CliCommand setup
+  if ($LASTEXITCODE -ne 0) { throw "CLI 配置向导未完成。" }
+  return $true
+}
+
+function Ensure-CodexLogin {
+  & codex login status *> $null
+  if ($LASTEXITCODE -eq 0) { return }
+
+  Write-Host "Codex CLI 尚未登录。" -ForegroundColor Yellow
+  $LoginNow = Read-WithDefault "是否现在运行 codex login？输入 y 或 n" "y"
+  if ($LoginNow -notmatch "^(y|yes)$") {
+    throw "需要先完成 Codex 登录，然后重新运行 feishu-codex-bridge setup。"
+  }
+  & codex login
+  if ($LASTEXITCODE -ne 0) { throw "Codex 登录未完成。" }
+  & codex login status *> $null
+  if ($LASTEXITCODE -ne 0) { throw "Codex 登录状态仍不可用。" }
+}
+
 Write-Host "Feishu Codex Bridge 配置向导" -ForegroundColor Cyan
 Write-Host ""
 
 Ensure-Node
 Require-Command "npm" "Node.js 安装不完整，请重新安装 Node.js。"
+if (-not $BridgePaths.CliMode -and (Install-And-RunBridgeCli)) { exit 0 }
 Offer-Install "codex" "未找到 Codex CLI，是否通过 npm 安装？输入 y 或 n" { npm install -g @openai/codex }
+Ensure-CodexLogin
 Offer-Install "lark-cli" "未找到 lark-cli，是否安装飞书官方 CLI？输入 y 或 n" { npx @larksuite/cli@latest install }
 
 $Profile = Read-WithDefault "请输入 lark-cli Profile 名称" "codex-bridge"
@@ -99,7 +147,13 @@ if (-not (Test-LarkProfile -Profile $Profile)) {
   }
 }
 
-$DefaultWorkspace = (Split-Path -Parent $ProjectRoot)
+$DefaultWorkspace = if (-not [string]::IsNullOrWhiteSpace($env:FEISHU_CODEX_SETUP_CWD)) {
+  $env:FEISHU_CODEX_SETUP_CWD
+} elseif ($BridgePaths.CliMode) {
+  [Environment]::GetFolderPath("MyDocuments")
+} else {
+  Split-Path -Parent $ProjectRoot
+}
 $Workspace = Read-WithDefault "请输入允许远程操作的 Codex 项目根目录" $DefaultWorkspace
 if (-not (Test-Path -LiteralPath $Workspace -PathType Container)) {
   throw "目录不存在：$Workspace"
@@ -121,10 +175,11 @@ TASK_PAGE_SIZE=8
 RUNNING_NOTICE_DELAY_MS=180000
 PROGRESS_NOTICE_INTERVAL_MS=60000
 PAIRING_TTL_MINUTES=10
-RUNTIME_DIR=.runtime
+RUNTIME_DIR=$($BridgePaths.RuntimeDir)
 "@
-Set-Content -LiteralPath (Join-Path $ProjectRoot ".env") -Value $EnvContent -Encoding UTF8
-New-Item -ItemType Directory -Path (Join-Path $ProjectRoot ".runtime") -Force | Out-Null
+New-Item -ItemType Directory -Path $BridgePaths.DataDir -Force | Out-Null
+Set-Content -LiteralPath $BridgePaths.ConfigFile -Value $EnvContent -Encoding UTF8
+New-Item -ItemType Directory -Path $BridgePaths.RuntimeDir -Force | Out-Null
 
 Write-Host ""
 & node scripts/doctor.mjs
@@ -133,4 +188,5 @@ if ($LASTEXITCODE -ne 0) { throw "环境自检失败，请按上方提示处理�
 Write-Host ""
 & node scripts/pairing.mjs
 Write-Host ""
-Write-Host "配置完成。运行 .\start.ps1 启动服务。" -ForegroundColor Green
+$StartGuide = if ($BridgePaths.CliMode) { "feishu-codex-bridge start" } else { ".\start.ps1" }
+Write-Host "配置完成。运行 $StartGuide 启动服务。" -ForegroundColor Green

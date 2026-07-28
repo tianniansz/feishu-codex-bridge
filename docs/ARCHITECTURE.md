@@ -11,7 +11,7 @@ flowchart LR
   L --> G["Feishu Codex Bridge"]
   G --> A["配对与目录白名单"]
   A --> C["Codex App Server（stdio）"]
-  C --> T["本机 Codex Desktop Task"]
+  C --> T["本机 Codex Task（Desktop / CLI）"]
   T --> G
   C -. "命令/文件审批请求" .-> G
   G -. "单次 accept/decline" .-> C
@@ -35,12 +35,14 @@ flowchart LR
 
 本机保存：
 
-- `.env`：Profile 和目录配置
-- `.runtime/access.json`：已配对用户标识
-- `.runtime/sessions.json`：当前 Task 映射
-- `.runtime/*.log`：运行日志
-- `.runtime/bridge.ready`：飞书事件监听已收到 ready marker
-- `.runtime/bridge.stop`：PowerShell 向 Node.js 发出的优雅停止请求
+- `%LOCALAPPDATA%\FeishuCodexBridge\config.env`：Profile 和目录配置
+- `runtime/access.json`：已配对用户标识
+- `runtime/sessions.json`：当前 Task 映射
+- `runtime/*.log`：运行日志
+- `runtime/bridge.ready`：飞书事件监听已收到 ready marker
+- `runtime/bridge.stop`：管理命令向 Node.js 发出的优雅停止请求
+
+源码兼容模式仍使用项目内 `.env` 和 `.runtime`。全局 npm 包升级不会覆盖用户数据目录。
 
 这些文件均不进入 Git。Codex 认证信息仍由 Codex CLI 自己管理。
 

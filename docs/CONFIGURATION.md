@@ -1,6 +1,13 @@
 # 配置说明
 
-配置保存在项目根目录的 `.env`，该文件默认被 Git 忽略。
+全局 CLI 的配置保存在 `%LOCALAPPDATA%\FeishuCodexBridge\config.env`，运行状态和日志位于同目录的 `runtime` 子目录。源码兼容模式仍使用项目根目录的 `.env` 和 `.runtime`。
+
+查看或编辑当前配置：
+
+```powershell
+feishu-codex-bridge config
+feishu-codex-bridge config edit
+```
 
 ## 必填配置
 
@@ -34,11 +41,10 @@ ALLOWED_WORKSPACE_ROOTS=D:\Work;D:\OpenSource
 | `TASK_PAGE_SIZE` | `8` | 飞书中每页展示的 Task 数量 |
 | `RUNNING_NOTICE_DELAY_MS` | `180000` | 长时间运行提示延迟 |
 | `PROGRESS_NOTICE_INTERVAL_MS` | `60000` | 自动进度提示的最短间隔 |
-| `RUNTIME_DIR` | `.runtime` | 本地状态和日志目录 |
+| `RUNTIME_DIR` | 用户数据目录下的 `runtime` | 本地状态和日志目录 |
 
 修改配置后需要重启服务：
 
 ```powershell
-.\stop.ps1
-.\start.ps1
+feishu-codex-bridge restart
 ```

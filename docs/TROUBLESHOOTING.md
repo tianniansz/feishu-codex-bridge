@@ -3,18 +3,18 @@
 首先运行：
 
 ```powershell
-npm run doctor
+feishu-codex-bridge doctor
 ```
 
 ## 找不到 Node.js
 
-重新运行配置向导：
+从源码首次安装时重新运行引导入口：
 
 ```powershell
 .\setup.ps1
 ```
 
-向导会优先使用 `winget` 安装 Node.js LTS。没有 `winget` 时，按提示从 [Node.js 官网](https://nodejs.org/en/download) 安装；完成后可回到原窗口继续检测。
+向导会优先使用 `winget` 安装 Node.js LTS。没有 `winget` 时，按提示从 [Node.js 官网](https://nodejs.org/en/download) 安装；完成后可回到原窗口继续检测。CLI 已安装后使用 `feishu-codex-bridge setup` 重新配置。
 
 ## 找不到 Codex CLI
 
@@ -56,37 +56,37 @@ lark-cli --profile codex-bridge whoami --as bot
 - 应用已经发布
 - 消息事件和权限已经配置
 - `lark-cli event consume im.message.receive_v1 --as bot` 可以收到事件
-- `.env` 中的 `LARK_CLI_PROFILE` 正确
+- `feishu-codex-bridge config` 指向的配置中 `LARK_CLI_PROFILE` 正确
 
 ## `tasks` 返回空列表
 
-- Codex Desktop 中需要存在已保存 Task
+- Codex Desktop 或 Codex CLI 中需要存在已保存 Task
 - Task 工作目录必须位于 `ALLOWED_WORKSPACE_ROOTS` 内
 - Windows 路径必须真实存在
-- 修改 `.env` 后需要重启 Bridge
+- 修改配置后需要运行 `feishu-codex-bridge restart`
 
 ## 配对码失效
 
 ```powershell
-npm run pairing
+feishu-codex-bridge pairing
 ```
 
 如果需要撤销旧用户：
 
 ```powershell
-npm run pairing:reset
+feishu-codex-bridge pairing --reset
 ```
 
 ## 服务启动失败
 
 ```powershell
-Get-Content .runtime\bridge.error.log -Tail 100
-.\start.ps1 -Foreground
+feishu-codex-bridge logs
+feishu-codex-bridge start --foreground
 ```
 
 不要将日志原样公开提交；日志可能包含本机环境信息。
 
-`start.ps1` 会等待最多 30 秒，只有收到 lark-cli ready marker 才报告成功。若超时，进程会自动停止。`stop.ps1` 默认等待最多 15 秒完成订阅清理，再进行兜底强制停止。
+启动命令会等待最多 30 秒，只有收到 lark-cli ready marker 才报告成功。停止命令默认等待最多 15 秒完成订阅清理，再进行兜底强制停止。
 
 ## Codex 升级后协议不兼容
 
@@ -94,8 +94,8 @@ Get-Content .runtime\bridge.error.log -Tail 100
 
 ```powershell
 codex --version
-npm run doctor
+feishu-codex-bridge doctor
 npm test
 ```
 
-提交 Issue 时附上版本和经过脱敏的错误，不要提交 `.env` 或 `.runtime`。
+提交 Issue 时附上版本和经过脱敏的错误，不要提交 `config.env`、用户数据目录或运行日志。

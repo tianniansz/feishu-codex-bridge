@@ -2,21 +2,23 @@
 
 ## 目标
 
-让一位没有参与开发的 Windows 用户，在 15 分钟内完成安装、配对并成功续聊一个已有 Codex Desktop Task。
+让一位没有参与开发的 Windows 用户，在 15 分钟内完成安装、配对并成功续聊一个已有 Codex Task。
 
 ## 干净机器验收
 
 - [ ] Windows 10/11，Node.js 20+，Codex Desktop 或 Codex CLI 已可正常使用。
 - [ ] 只阅读 README 即能找到安装入口。
-- [ ] `setup.ps1` 能检查或引导安装 Codex CLI 与官方 `lark-cli`。
+- [ ] `setup.ps1` 能引导安装 Node.js，并转入统一 CLI 配置向导。
+- [ ] `feishu-codex-bridge` 能统一完成配置、自检、启停、日志和配对。
+- [ ] Codex CLI 未登录时，向导能启动登录并在完成后复检。
 - [ ] 向导明确指出需要在飞书开放平台完成的步骤和权限。
-- [ ] `.env` 自动生成，密钥不会打印到日志或进入 Git。
-- [ ] `npm run doctor` 给出可执行的错误提示。
+- [ ] `config.env` 写入用户数据目录，升级 npm 包后仍保留。
+- [ ] `feishu-codex-bridge doctor` 给出可执行的错误提示。
 - [ ] 配对码过期、错误用户、群聊默认拒绝均符合预期。
 
 ## 核心路径验收
 
-- [ ] `tasks` 能看到 Codex Desktop 已有 Task，且看不到白名单外目录。
+- [ ] `tasks` 能看到 Codex Desktop 或 CLI 已有 Task，且看不到白名单外目录。
 - [ ] `tasks <关键词>`、`project:<项目>`、`page:<页码>` 可组合使用。
 - [ ] `open <编号>` 打开的 Task 与最近一页展示一致。
 - [ ] 普通文本能续接 Task，最终回复能回到原飞书会话。
@@ -30,7 +32,7 @@
 - [ ] Codex 执行超时后不会伪报成功，可用 `open` 刷新结果。
 - [ ] 重复事件不会重复触发 Codex。
 - [ ] 长回复能够分段，阶段通知不会刷屏。
-- [ ] `stop.ps1` 能让长期事件监听优雅退出，不遗留订阅进程。
+- [ ] `feishu-codex-bridge stop` 能让长期事件监听优雅退出，不遗留订阅进程。
 
 ## 邀请体验者时收集
 

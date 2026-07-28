@@ -20,6 +20,28 @@ function Refresh-BridgeProcessPath {
   }
 }
 
+function Get-BridgeDataPaths {
+  param([string]$ProjectRoot)
+
+  $RequestedDir = $env:FEISHU_CODEX_HOME
+  if ([string]::IsNullOrWhiteSpace($RequestedDir)) {
+    return [pscustomobject]@{
+      DataDir = $ProjectRoot
+      ConfigFile = Join-Path $ProjectRoot ".env"
+      RuntimeDir = Join-Path $ProjectRoot ".runtime"
+      CliMode = $false
+    }
+  }
+
+  $DataDir = [IO.Path]::GetFullPath($RequestedDir)
+  return [pscustomobject]@{
+    DataDir = $DataDir
+    ConfigFile = Join-Path $DataDir "config.env"
+    RuntimeDir = Join-Path $DataDir "runtime"
+    CliMode = $true
+  }
+}
+
 function Test-LarkWhoamiOutput {
   param([string]$Json)
 

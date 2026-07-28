@@ -5,7 +5,7 @@ export function loadConfig(env = process.env) {
   const allowedWorkspaceRoots = splitList(env.ALLOWED_WORKSPACE_ROOTS).map((item) => path.resolve(item));
 
   if (!env.LARK_CLI_PROFILE?.trim()) {
-    throw new Error("缺少 LARK_CLI_PROFILE，请先运行 setup.ps1");
+    throw new Error("缺少 LARK_CLI_PROFILE，请先运行 feishu-codex-bridge setup（源码模式可运行 setup.ps1）");
   }
   if (allowedWorkspaceRoots.length === 0) {
     throw new Error("缺少 ALLOWED_WORKSPACE_ROOTS，请至少配置一个允许 Codex 操作的目录");

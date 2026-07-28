@@ -1,6 +1,8 @@
 ﻿$ErrorActionPreference = "Stop"
 $ProjectRoot = (Resolve-Path -LiteralPath $PSScriptRoot).Path
-$RuntimeDir = Join-Path $ProjectRoot ".runtime"
+. (Join-Path $ProjectRoot "scripts\windows-helpers.ps1")
+$BridgePaths = Get-BridgeDataPaths -ProjectRoot $ProjectRoot
+$RuntimeDir = $BridgePaths.RuntimeDir
 $PidFile = Join-Path $RuntimeDir "bridge.pid"
 $ReadyFile = Join-Path $RuntimeDir "bridge.ready"
 $StopFile = Join-Path $RuntimeDir "bridge.stop"

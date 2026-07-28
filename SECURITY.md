@@ -13,7 +13,7 @@ Feishu Codex Bridge 会将飞书消息交给本机 Codex 执行。获得授权�
 - 使用 Codex 沙箱和批准策略限制文件、命令及网络权限。
 - 在飞书中审批前检查操作摘要；审批码只做单次授权，不等于永久放行。
 - 不要把 App Server 暴露到公网。
-- 不要提交 `.env`、`.runtime`、日志或 Codex 凭证。
+- 不要提交 `config.env`、用户数据目录、日志或 Codex 凭证。
 
 审批消息会对常见的 Token、Secret、Password 和 API Key 参数做基础脱敏，但无法识别所有自定义敏感值。不要让 Codex 把真实密钥直接拼入命令行；优先使用本机安全环境变量或凭证存储。
 
