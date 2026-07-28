@@ -34,7 +34,7 @@ export function mapLarkCliEvent(raw) {
   }
 
   if (text === "\u5e2e\u52a9" || text.toLowerCase() === "help") {
-    return { type: "help", reason: "可用命令：tasks、open <编号>、open、exit。普通文本会发送到当前 Task。", ...base };
+    return { type: "help", reason: "可用命令：tasks [关键词] [project:项目] [page:页码]、open <编号>、open、status、approve/reject <审批码>、exit。普通文本会发送到当前 Task。", ...base };
   }
 
   return {

@@ -98,5 +98,7 @@ tasks
 2. 飞书发送 `tasks` 能看到该 Task。
 3. 发送 `open 1` 能进入该 Task。
 4. 发送普通文本后能收到 Codex 最终回复。
+5. 执行期间发送 `status` 能看到当前阶段。
+6. 本机 Codex 要求批准时，飞书能用 `approve <审批码>` 或 `reject <审批码>` 完成单次处理。
 
-若失败，请查看[故障排查](TROUBLESHOOTING.md)。
+若失败，请查看[故障排查](TROUBLESHOOTING.md)。准备邀请他人体验前，再完成[发布前体验验收](EXPERIENCE_CHECKLIST.md)。

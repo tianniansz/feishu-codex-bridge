@@ -1,14 +1,17 @@
 # Feishu Codex Bridge
 
-通过自己的飞书机器人，远程查看并续聊自己电脑上的 Codex Task。
+通过自己的飞书机器人，远程查看并续聊自己电脑上已经存在的 Codex Desktop Task。
+
+项目刻意聚焦于一个场景：**离开电脑后，从飞书安全地接着聊现有 Codex Task**。它不是通用 Coding Agent 网关，也不接管 Codex 账号和凭证。
 
 > 当前版本面向 Windows 10/11。项目运行在用户自己的电脑上，不托管 Codex 凭证，也不暴露 Codex App Server 网络端口。
 
 ## 功能
 
-- 从飞书列出允许目录内的 Codex Task
+- 搜索、按项目过滤并分页查看允许目录内的 Codex Desktop Task
 - 选择并继续已有 Task
-- 接收执行进度和最终结果
+- 查询执行状态、接收节流后的进度和最终结果
+- 在飞书中批准或拒绝 Codex 的命令/文件修改请求
 - 可选地从飞书新建 Task
 - 一次性配对码绑定飞书用户
 - 工作目录白名单
@@ -51,8 +54,13 @@ open 1
 |---|---|
 | `pair 123456` | 使用一次性配对码绑定用户 |
 | `tasks` | 查看可续聊的 Codex Task |
+| `tasks 登录` | 按标题、摘要或项目搜索 Task |
+| `tasks project:demo page:2` | 按项目过滤并翻页 |
 | `open 2` | 进入指定 Task |
 | `open` | 刷新当前 Task 状态 |
+| `status` | 查看当前执行阶段和耗时 |
+| `approve A1B2C3` | 单次批准当前会话中的 Codex 请求 |
+| `reject A1B2C3` | 拒绝当前会话中的 Codex 请求 |
 | 普通文本 | 发送给当前 Codex Task |
 | `exit` | 退出当前 Task |
 | `new` | 新建 Task，默认关闭 |
@@ -77,6 +85,7 @@ npm run pairing:reset     # 撤销全部用户并重新配对
 - 只展示 `ALLOWED_WORKSPACE_ROOTS` 内的 Task。
 - `.env`、运行状态和日志不会进入 Git。
 - App Server 仅通过本机 stdio 启动，不监听网络端口。
+- 审批码只对原飞书会话和单次请求有效，不提供远程永久放行。
 
 飞书消息会以本机登录用户的 Codex 权限执行。请只允许可信用户配对，并合理配置 Codex 的沙箱和批准策略。详见 [安全策略](SECURITY.md)。
 
@@ -96,6 +105,8 @@ Codex App Server 提供会话历史、`thread/resume` 和流式事件等深度�
 - [使用指南](docs/USAGE.md)
 - [架构说明](docs/ARCHITECTURE.md)
 - [故障排查](docs/TROUBLESHOOTING.md)
+- [产品定位与竞品对比](docs/PRODUCT_POSITIONING.md)
+- [发布前体验验收](docs/EXPERIENCE_CHECKLIST.md)
 - [贡献指南](CONTRIBUTING.md)
 
 ## 开发

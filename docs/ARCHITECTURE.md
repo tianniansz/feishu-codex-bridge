@@ -11,8 +11,10 @@ flowchart LR
   L --> G["Feishu Codex Bridge"]
   G --> A["配对与目录白名单"]
   A --> C["Codex App Server（stdio）"]
-  C --> T["本机 Codex Task"]
+  C --> T["本机 Codex Desktop Task"]
   T --> G
+  C -. "命令/文件审批请求" .-> G
+  G -. "单次 accept/decline" .-> C
   G --> B
 ```
 
@@ -22,11 +24,12 @@ flowchart LR
 |---|---|
 | `src/lark` | 消费飞书事件、解析消息、发送回复 |
 | `src/codex` | Codex App Server JSON-RPC 客户端 |
-| `src/core/router.js` | `tasks/open/new/exit` 和普通文本路由 |
+| `src/core/router.js` | `tasks/open/status/new/exit`、审批和普通文本路由 |
+| `src/core/taskBrowser.js` | Task 搜索、项目过滤和分页 |
 | `src/core/accessStore.js` | 一次性配对和用户授权 |
 | `src/core/projectStore.js` | 工作目录白名单和 Task 过滤 |
 | `src/core/sessionStore.js` | 飞书用户与当前 Task 的本地映射 |
-| `src/core/jobManager.js` | 异步执行、运行锁和结果推送 |
+| `src/core/jobManager.js` | 异步执行、阶段状态、单次审批、运行锁和结果推送 |
 
 ## 数据边界
 
@@ -48,6 +51,9 @@ initialize
 thread/list 或 thread/read
 thread/resume
 turn/start
+item/started 与 item/completed
+item/commandExecution/requestApproval
+item/fileChange/requestApproval
 turn/completed
 ```
 

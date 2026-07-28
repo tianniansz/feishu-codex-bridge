@@ -109,7 +109,12 @@ export class CodexAppServerClient {
     ], { waitForIds: [1] });
   }
 
-  async sendMessage(threadId, text, { cwd = null, timeoutMs = this.timeoutMs } = {}) {
+  async sendMessage(threadId, text, {
+    cwd = null,
+    timeoutMs = this.timeoutMs,
+    onApproval = null,
+    onProgress = null
+  } = {}) {
     const deltas = [];
     let terminalTurn = null;
     let finalText = "";
@@ -127,6 +132,7 @@ export class CodexAppServerClient {
       waitForIds: [1, 2],
       timeoutMs,
       onNotification(message) {
+        onProgress?.(message);
         if (message.method === "item/agentMessage/delta") {
           deltas.push(message.params?.delta || "");
         }
@@ -136,6 +142,13 @@ export class CodexAppServerClient {
         if (message.method === "turn/completed") {
           terminalTurn = message.params?.turn || null;
         }
+      },
+      async onServerRequest(message) {
+        if (["item/commandExecution/requestApproval", "item/fileChange/requestApproval"].includes(message.method)) {
+          if (!onApproval) return { decision: "decline" };
+          return onApproval({ method: message.method, ...(message.params || {}) });
+        }
+        throw new Error(`Unsupported Codex server request: ${message.method}`);
       },
       shouldStop() {
         return Boolean(terminalTurn);
@@ -171,6 +184,7 @@ export class CodexAppServerClient {
     const waitForIds = new Set(options.waitForIds || []);
     const timeoutMs = options.timeoutMs || this.timeoutMs;
     const onNotification = options.onNotification || (() => {});
+    const onServerRequest = options.onServerRequest || null;
     const shouldStop = options.shouldStop || (() => false);
 
     return new Promise((resolve, reject) => {
@@ -225,7 +239,7 @@ export class CodexAppServerClient {
         method: "initialize",
         params: {
           clientInfo: {
-            name: "codex-developer-assistant",
+            name: "feishu-codex-bridge",
             version: "0.1.0"
           }
         }
@@ -240,6 +254,11 @@ export class CodexAppServerClient {
           message = JSON.parse(trimmed);
         } catch (error) {
           logger.error("codex_app_server.invalid_json", { error: error.message });
+          return;
+        }
+
+        if (message.id !== undefined && message.method) {
+          void handleServerRequest(message);
           return;
         }
 
@@ -262,6 +281,19 @@ export class CodexAppServerClient {
 
         if ((allResponsesReceived() && shouldStop()) || (allResponsesReceived() && !options.shouldStop)) {
           finish(null, results);
+        }
+      }
+
+      async function handleServerRequest(message) {
+        if (!onServerRequest) {
+          write({ jsonrpc: "2.0", id: message.id, error: { code: -32601, message: `Unsupported server request: ${message.method}` } });
+          return;
+        }
+        try {
+          const result = await onServerRequest(message);
+          if (!settled) write({ jsonrpc: "2.0", id: message.id, result });
+        } catch (error) {
+          if (!settled) write({ jsonrpc: "2.0", id: message.id, error: { code: -32603, message: error.message } });
         }
       }
 

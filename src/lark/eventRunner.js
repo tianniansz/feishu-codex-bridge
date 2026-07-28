@@ -17,23 +17,34 @@ export class LarkEventRunner {
     const args = [
       "--profile", this.config.profile,
       "event", "consume", "im.message.receive_v1",
-      "--as", this.config.eventAs,
-      "--quiet"
+      "--as", this.config.eventAs
     ];
     const command = windowsCommand(this.config.bin, args);
-    this.child = spawn(command.bin, command.args, { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+    this.child = spawn(command.bin, command.args, { windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
     this.child.stdout.setEncoding("utf8");
     this.child.stderr.setEncoding("utf8");
 
     let buffer = "";
+    let ready = false;
+    const pendingLines = [];
     this.child.stdout.on("data", (chunk) => {
       buffer += chunk;
       const lines = buffer.split(/\r?\n/);
       buffer = lines.pop() || "";
-      for (const line of lines) void this.handleLine(line);
+      for (const line of lines) {
+        if (ready) void this.handleLine(line);
+        else pendingLines.push(line);
+      }
     });
     this.child.stderr.on("data", (chunk) => {
-      for (const line of chunk.split(/\r?\n/).filter(Boolean)) logger.info("lark.event.status", { message: line });
+      for (const line of chunk.split(/\r?\n/).filter(Boolean)) {
+        if (line.includes("[event] ready event_key=")) {
+          ready = true;
+          logger.info("lark.event.ready", { eventKey: "im.message.receive_v1" });
+          for (const pendingLine of pendingLines.splice(0)) void this.handleLine(pendingLine);
+        }
+        else logger.info("lark.event.status", { message: line });
+      }
     });
     this.child.on("error", (error) => logger.error("lark.event.error", { error: error.message }));
 
@@ -43,7 +54,8 @@ export class LarkEventRunner {
   }
 
   stop() {
-    this.child?.kill("SIGTERM");
+    if (this.child?.stdin && !this.child.stdin.destroyed) this.child.stdin.end();
+    else this.child?.kill("SIGTERM");
   }
 
   async handleLine(line) {

@@ -27,7 +27,8 @@ const jobManager = new DeveloperJobManager({
   codexClient,
   feishuClient: larkClient,
   sessionStore,
-  runningNoticeDelayMs: config.bridge.runningNoticeDelayMs
+  runningNoticeDelayMs: config.bridge.runningNoticeDelayMs,
+  progressNoticeIntervalMs: config.bridge.progressNoticeIntervalMs
 });
 const router = new DeveloperRouter({
   codexClient,
@@ -35,6 +36,7 @@ const router = new DeveloperRouter({
   projectStore,
   jobManager,
   maxTasks: config.bridge.taskLimit,
+  taskPageSize: config.bridge.taskPageSize,
   allowCreateTask: config.bridge.allowCreateTask
 });
 const runner = new LarkEventRunner({ config: config.lark, client: larkClient, router, accessStore, eventStore });

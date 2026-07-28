@@ -29,7 +29,9 @@ export function loadConfig(env = process.env) {
       allowedWorkspaceRoots,
       allowCreateTask: parseBoolean(env.ALLOW_CREATE_TASK, false),
       taskLimit: parsePositiveInteger(env.TASK_LIMIT, 50),
+      taskPageSize: parsePositiveInteger(env.TASK_PAGE_SIZE, 8),
       runningNoticeDelayMs: parsePositiveInteger(env.RUNNING_NOTICE_DELAY_MS, 180_000),
+      progressNoticeIntervalMs: parsePositiveInteger(env.PROGRESS_NOTICE_INTERVAL_MS, 60_000),
       pairingTtlMs: parsePositiveInteger(env.PAIRING_TTL_MINUTES, 10) * 60_000
     }
   };

@@ -3,17 +3,23 @@ const RUNNING_STATUS = new Set(["active", "running", "processing", "queued"]);
 export function formatTasks(threads = [], {
   taskMetadata = {},
   projectStore = null,
-  runningThreadIds = new Set()
+  runningThreadIds = new Set(),
+  page = 1,
+  pageCount = 1,
+  total = threads.length,
+  query = "",
+  project = ""
 } = {}) {
   if (!threads.length) {
     return [
-      "当前没有可接续的 Task。",
+      query || project ? "没有找到符合条件的 Task。" : "当前没有可接续的 Task。",
       "",
-      "可以发送 new 创建新的 Codex Task。"
+      "可尝试发送 tasks 清除筛选条件。"
     ].join("\n");
   }
 
-  const lines = ["当前 Task", ""];
+  const filters = [query && `关键词：${query}`, project && `项目：${project}`].filter(Boolean).join("；");
+  const lines = ["Codex Desktop Task", `第 ${page}/${pageCount} 页，共 ${total} 个${filters ? `；${filters}` : ""}`, ""];
   threads.forEach((thread, index) => {
     const metadata = taskMetadata[thread.id] || {};
     const project = projectStore?.projectForThread?.(thread, { metadata: taskMetadata }) || {
@@ -28,7 +34,21 @@ export function formatTasks(threads = [], {
   });
 
   lines.push("发送 open <编号> 进入指定 Task。");
+  if (page < pageCount) lines.push(`下一页：tasks${query ? ` ${query}` : ""}${project ? ` project:${project}` : ""} page:${page + 1}`);
   return lines.join("\n").trim();
+}
+
+export function formatJobStatus(job = null) {
+  if (!job) return "当前 Task 没有正在执行的任务。";
+  const lines = [
+    "Codex 正在执行",
+    "",
+    `运行时长：${formatElapsed(Date.now() - job.startedAt)}`,
+    `当前阶段：${job.progress?.label || "正在思考和处理"}`
+  ];
+  if (job.progress?.detail) lines.push(`详情：${clip(job.progress.detail, 500)}`);
+  if (job.pendingApprovalCode) lines.push("", `等待审批：${job.pendingApprovalCode}`, `批准：approve ${job.pendingApprovalCode}`, `拒绝：reject ${job.pendingApprovalCode}`);
+  return lines.join("\n");
 }
 
 export function formatOpenReply(thread = {}, { index = null, project = null, prefix = "" } = {}) {

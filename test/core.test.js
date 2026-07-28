@@ -6,6 +6,8 @@ import test from "node:test";
 import { AccessStore } from "../src/core/accessStore.js";
 import { DeveloperProjectStore } from "../src/core/projectStore.js";
 import { DeveloperRouter } from "../src/core/router.js";
+import { DeveloperJobManager } from "../src/core/jobManager.js";
+import { browseTasks, parseTaskQuery } from "../src/core/taskBrowser.js";
 import { EventStore } from "../src/core/eventStore.js";
 import { mapLarkCliEvent } from "../src/lark/eventAdapter.js";
 
@@ -104,6 +106,60 @@ test("Router 默认禁止从飞书新建 Task", async () => {
   const result = await router.handle({ text: "new", chatId: "oc_1", senderId: "ou_1" });
   assert.equal(result.ok, false);
   assert.match(result.reply, /默认禁止/);
+});
+
+test("Task 列表支持关键词、项目过滤和分页", () => {
+  const threads = [
+    { id: "1", name: "修复登录", cwd: "D:\\Projects\\alpha" },
+    { id: "2", name: "更新文档", cwd: "D:\\Projects\\beta" },
+    { id: "3", name: "登录回归", cwd: "D:\\Projects\\alpha" }
+  ];
+  const projectStore = new DeveloperProjectStore({ allowedRoots: ["D:\\Projects"] });
+  const parsed = parseTaskQuery("tasks 登录 project:alpha page:2");
+  const result = browseTasks(threads, { ...parsed, pageSize: 1, projectStore });
+
+  assert.deepEqual(parsed, { query: "登录", project: "alpha", page: 2 });
+  assert.equal(parseTaskQuery("tasks 2").page, 2);
+  assert.equal(result.total, 2);
+  assert.equal(result.page, 2);
+  assert.equal(result.threads[0].id, "3");
+});
+
+test("飞书审批码只允许原会话处理", async () => {
+  const sent = [];
+  const codexClient = {
+    async sendMessage(threadId, text, options) {
+      const approval = await options.onApproval({
+        method: "item/commandExecution/requestApproval",
+        threadId,
+        itemId: "item_1",
+        command: "npm test",
+        reason: "运行相关测试"
+      });
+      return { ok: true, text: approval.decision };
+    }
+  };
+  const manager = new DeveloperJobManager({
+    codexClient,
+    feishuClient: { async replyText(messageId, text) { sent.push({ messageId, text }); } },
+    runningNoticeDelayMs: 0,
+    progressNoticeIntervalMs: 0
+  });
+  const started = manager.start({
+    event: { messageId: "om_1", chatId: "oc_1" },
+    sessionKey: "oc_1:ou_1",
+    threadId: "thread_1",
+    text: "继续",
+    cwd: "D:\\Projects\\alpha"
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  const code = sent[0].text.match(/审批码：([A-F0-9]{6})/)[1];
+
+  assert.equal(manager.resolveApproval({ sessionKey: "oc_2:ou_2", code, decision: "accept" }).ok, false);
+  assert.equal(manager.resolveApproval({ sessionKey: "oc_1:ou_1", code, decision: "accept" }).ok, true);
+  assert.equal(manager.resolveApproval({ sessionKey: "oc_1:ou_1", code, decision: "accept" }).ok, false);
+  await started.job.promise;
+  assert.equal(sent.at(-1).text.includes("accept"), true);
 });
 
 function fakeCodexClient() {

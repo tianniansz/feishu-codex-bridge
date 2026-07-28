@@ -1,10 +1,12 @@
 import { developerSessionKey } from "./sessionStore.js";
 import { DeveloperProjectStore } from "./projectStore.js";
+import { browseTasks, parseTaskQuery } from "./taskBrowser.js";
 import {
   formatLastTaskStillRunning,
   formatNewTaskReply,
   formatOpenReply,
   formatTasks,
+  formatJobStatus,
   formatUndeliveredResult,
   hasCompletedUndeliveredResult,
   hasPendingUndeliveredResult,
@@ -12,12 +14,13 @@ import {
 } from "./taskFormatter.js";
 
 export class DeveloperRouter {
-  constructor({ codexClient, sessionStore, projectStore = new DeveloperProjectStore(), jobManager = null, maxTasks = 50, allowCreateTask = false }) {
+  constructor({ codexClient, sessionStore, projectStore = new DeveloperProjectStore(), jobManager = null, maxTasks = 50, taskPageSize = 8, allowCreateTask = false }) {
     this.codexClient = codexClient;
     this.sessionStore = sessionStore;
     this.projectStore = projectStore;
     this.jobManager = jobManager;
     this.maxTasks = maxTasks;
+    this.taskPageSize = taskPageSize;
     this.allowCreateTask = allowCreateTask;
   }
 
@@ -26,13 +29,20 @@ export class DeveloperRouter {
     const command = text.toLowerCase();
     const key = developerSessionKey(event);
 
+    const approvalMatch = text.match(/^(approve|批准|reject|拒绝)\s+([a-f0-9]{6})$/i);
+    if (approvalMatch && this.jobManager) {
+      const decision = /^(approve|批准)$/i.test(approvalMatch[1]) ? "accept" : "decline";
+      return this.jobManager.resolveApproval({ sessionKey: key, code: approvalMatch[2], decision });
+    }
+
     const flow = await this.sessionStore.getFlow?.(key);
     if (flow) return this.handleFlow(key, text, flow);
 
-    if (command === "tasks") return this.handleTasks();
+    if (/^tasks(?:\s|$)/i.test(text)) return this.handleTasks(key, text);
     if (command === "new") return this.handleNew(key);
     if (command === "exit") return this.handleExit(key);
     if (command === "open") return this.handleRefreshCurrentTask(key);
+    if (command === "status" || command === "状态") return this.handleStatus(key);
 
     const openMatch = text.match(/^open\s+(\d+)$/i);
     if (openMatch) {
@@ -42,18 +52,36 @@ export class DeveloperRouter {
     return this.handleChat(key, text, event);
   }
 
-  async handleTasks() {
+  async handleTasks(key, text = "tasks") {
     const allThreads = await this.codexClient.listThreads({ limit: this.maxTasks });
     const taskMetadata = await this.sessionStore.listTaskMetadata?.() || {};
-    const threads = this.projectStore.filterThreads(allThreads, taskMetadata);
+    const allowedThreads = this.projectStore.filterThreads(allThreads, taskMetadata);
+    const query = parseTaskQuery(text);
+    const browser = browseTasks(allowedThreads, {
+      ...query,
+      pageSize: this.taskPageSize,
+      taskMetadata,
+      projectStore: this.projectStore
+    });
+    await this.sessionStore.update?.(key, {
+      taskBrowser: {
+        threadIds: browser.threads.map((thread) => thread.id),
+        query: browser.query,
+        project: browser.project,
+        page: browser.page,
+        pageCount: browser.pageCount,
+        total: browser.total
+      }
+    });
     return {
       ok: true,
-      reply: formatTasks(threads, {
+      reply: formatTasks(browser.threads, {
         taskMetadata,
         projectStore: this.projectStore,
-        runningThreadIds: this.jobManager?.runningThreadIds?.() || new Set()
+        runningThreadIds: this.jobManager?.runningThreadIds?.() || new Set(),
+        ...browser
       }),
-      data: { threads }
+      data: { threads: browser.threads, browser }
     };
   }
 
@@ -136,7 +164,11 @@ export class DeveloperRouter {
     const allThreads = await this.codexClient.listThreads({ limit: this.maxTasks });
     const taskMetadata = await this.sessionStore.listTaskMetadata?.() || {};
     const threads = this.projectStore.filterThreads(allThreads, taskMetadata);
-    const selected = threads[index - 1];
+    const session = await this.sessionStore.get(key);
+    const displayedIds = session?.taskBrowser?.threadIds || [];
+    const selected = displayedIds.length
+      ? threads.find((thread) => thread.id === displayedIds[index - 1])
+      : threads[index - 1];
     if (!selected) {
       return { ok: false, reply: `未找到 Task #${index}，请先输入 tasks 查看列表。` };
     }
@@ -215,13 +247,19 @@ export class DeveloperRouter {
   async handleExit(key) {
     await this.sessionStore.clearFlow?.(key);
     const existing = await this.sessionStore.clear(key);
-    if (!existing) {
+    if (!existing?.threadId) {
       return { ok: true, reply: "当前没有打开任何 Task。" };
     }
     return {
       ok: true,
       reply: `已退出 Task。\n\n标题：\n${existing.title || existing.threadId}\n\n当前没有打开任何 Task。`
     };
+  }
+
+  async handleStatus(key) {
+    const session = await this.sessionStore.get(key);
+    if (!session?.threadId) return { ok: false, reply: "当前未进入任何 Task。请先发送 tasks，再发送 open <编号>。" };
+    return { ok: true, reply: formatJobStatus(this.jobManager?.getJob?.(session.threadId) || null) };
   }
 
   async handleChat(key, text, event) {

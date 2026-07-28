@@ -31,7 +31,9 @@ ALLOWED_WORKSPACE_ROOTS=D:\Work;D:\OpenSource
 | `LARK_CLI_BIN` | `lark-cli.cmd` | Windows 下的 lark-cli 命令 |
 | `CODEX_APP_SERVER_TIMEOUT_MS` | `3600000` | 单轮最长等待时间 |
 | `TASK_LIMIT` | `50` | 最多读取的 Task 数量 |
+| `TASK_PAGE_SIZE` | `8` | 飞书中每页展示的 Task 数量 |
 | `RUNNING_NOTICE_DELAY_MS` | `180000` | 长时间运行提示延迟 |
+| `PROGRESS_NOTICE_INTERVAL_MS` | `60000` | 自动进度提示的最短间隔 |
 | `RUNTIME_DIR` | `.runtime` | 本地状态和日志目录 |
 
 修改配置后需要重启服务：

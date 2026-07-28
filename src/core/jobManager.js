@@ -1,13 +1,16 @@
+import { randomBytes } from "node:crypto";
 import { formatElapsed } from "./taskFormatter.js";
 
 export class DeveloperJobManager {
-  constructor({ codexClient, feishuClient, sessionStore = null, runningNoticeDelayMs = 180000, now = () => Date.now() }) {
+  constructor({ codexClient, feishuClient, sessionStore = null, runningNoticeDelayMs = 180000, progressNoticeIntervalMs = 60000, now = () => Date.now() }) {
     this.codexClient = codexClient;
     this.feishuClient = feishuClient;
     this.sessionStore = sessionStore;
     this.runningNoticeDelayMs = runningNoticeDelayMs;
+    this.progressNoticeIntervalMs = progressNoticeIntervalMs;
     this.now = now;
     this.jobs = new Map();
+    this.pendingApprovals = new Map();
   }
 
   isRunning(threadId) {
@@ -16,6 +19,10 @@ export class DeveloperJobManager {
 
   runningThreadIds() {
     return new Set(this.jobs.keys());
+  }
+
+  getJob(threadId) {
+    return this.jobs.get(threadId) || null;
   }
 
   start({ event, sessionKey, threadId, text, cwd = null }) {
@@ -33,7 +40,9 @@ export class DeveloperJobManager {
       text,
       submittedAt,
       startedAt,
-      status: "running"
+      status: "running",
+      progress: { label: "正在思考和处理", detail: "", updatedAt: startedAt },
+      lastProgressNoticeAt: startedAt
     };
     this.jobs.set(threadId, job);
     void this.updateDelivery(job, { status: "running" });
@@ -44,15 +53,95 @@ export class DeveloperJobManager {
         }, this.runningNoticeDelayMs)
       : null;
 
-    job.promise = this.codexClient.sendMessage(threadId, text, { cwd })
+    job.promise = this.codexClient.sendMessage(threadId, text, {
+      cwd,
+      onProgress: (message) => this.updateProgress(job, message),
+      onApproval: (request) => this.requestApproval(job, request)
+    })
       .then((result) => this.finishJob(job, result))
       .catch((error) => this.failJob(job, error))
       .finally(() => {
         if (runningTimer) clearTimeout(runningTimer);
+        this.clearApprovals(job);
         this.jobs.delete(threadId);
       });
 
     return { started: true, job };
+  }
+
+  updateProgress(job, message) {
+    const progress = progressFromMessage(message);
+    if (!progress) return;
+    job.progress = { ...progress, updatedAt: this.now() };
+    if (this.progressNoticeIntervalMs <= 0) return;
+    if (this.now() - job.lastProgressNoticeAt < this.progressNoticeIntervalMs) return;
+    job.lastProgressNoticeAt = this.now();
+    void this.feishuClient.replyText(
+      job.messageId,
+      [`Codex 执行进度：${progress.label}`, progress.detail ? `\n${clip(progress.detail, 500)}` : "", "\n发送 status 可随时查看状态。"].join("").trim(),
+      `${job.messageId}:progress:${job.lastProgressNoticeAt}`,
+      { chatId: job.chatId }
+    );
+  }
+
+  async requestApproval(job, request) {
+    const code = this.createApprovalCode();
+    const approval = { code, job, request, resolve: null };
+    const decisionPromise = new Promise((resolve) => { approval.resolve = resolve; });
+    this.pendingApprovals.set(code, approval);
+    job.pendingApprovalCode = code;
+    job.progress = { label: "等待你的批准", detail: approvalSummary(request), updatedAt: this.now() };
+
+    try {
+      await this.feishuClient.replyText(
+        job.messageId,
+        formatApprovalRequest(code, request),
+        `${job.messageId}:approval:${code}`,
+        { chatId: job.chatId }
+      );
+    } catch {
+      this.pendingApprovals.delete(code);
+      job.pendingApprovalCode = null;
+      return { decision: "decline" };
+    }
+
+    const decision = await decisionPromise;
+    this.pendingApprovals.delete(code);
+    job.pendingApprovalCode = null;
+    job.progress = { label: decision === "accept" ? "已批准，继续执行" : "已拒绝，等待 Codex 处理", detail: "", updatedAt: this.now() };
+    return { decision };
+  }
+
+  resolveApproval({ sessionKey, code, decision }) {
+    const normalizedCode = String(code || "").toUpperCase();
+    const approval = this.pendingApprovals.get(normalizedCode);
+    if (!approval || approval.job.sessionKey !== sessionKey) {
+      return { ok: false, reply: "未找到属于当前会话的待审批请求，可能已过期或已处理。" };
+    }
+    const safeDecision = decision === "accept" ? "accept" : "decline";
+    this.pendingApprovals.delete(normalizedCode);
+    approval.job.pendingApprovalCode = null;
+    approval.resolve(safeDecision);
+    return {
+      ok: true,
+      reply: safeDecision === "accept" ? `已批准 ${normalizedCode}，Codex 将继续执行。` : `已拒绝 ${normalizedCode}，Codex 将继续处理或结束本轮。`
+    };
+  }
+
+  createApprovalCode() {
+    let code;
+    do code = randomBytes(3).toString("hex").toUpperCase();
+    while (this.pendingApprovals.has(code));
+    return code;
+  }
+
+  clearApprovals(job) {
+    for (const [code, approval] of this.pendingApprovals) {
+      if (approval.job !== job) continue;
+      approval.resolve("decline");
+      this.pendingApprovals.delete(code);
+    }
+    job.pendingApprovalCode = null;
   }
 
   async sendRunningNotice(job) {
@@ -66,7 +155,7 @@ export class DeveloperJobManager {
         `运行时长：${elapsed}`,
         "",
         "你可以稍后发送：",
-        "open",
+        "status",
         "",
         "刷新当前 Task 状态。",
         "",
@@ -153,4 +242,58 @@ export class DeveloperJobManager {
       }
     });
   }
+}
+
+function progressFromMessage(message = {}) {
+  if (message.method !== "item/started" && message.method !== "item/completed") return null;
+  const item = message.params?.item || {};
+  const completed = message.method === "item/completed";
+  const type = item.type || "";
+  if (type === "commandExecution") return { label: completed ? "命令执行完成" : "正在执行命令", detail: redactSensitive(commandText(item)) };
+  if (type === "fileChange") return { label: completed ? "文件修改完成" : "正在修改文件", detail: summarizeChanges(item.changes) };
+  if (type === "mcpToolCall") return { label: completed ? "工具调用完成" : "正在调用工具", detail: item.tool || item.name || "" };
+  if (type === "webSearch") return { label: completed ? "网络搜索完成" : "正在搜索网络", detail: item.query || "" };
+  if (type === "agentMessage") return { label: completed ? "正在整理最终回复" : "正在生成回复", detail: "" };
+  return null;
+}
+
+function formatApprovalRequest(code, request = {}) {
+  const network = request.networkApprovalContext;
+  const isFile = request.method === "item/fileChange/requestApproval";
+  const lines = ["⚠️ Codex 请求你的批准", "", `审批码：${code}`, `类型：${network ? "网络访问" : isFile ? "文件修改" : "命令执行"}`];
+  if (network) lines.push(`目标：${network.protocol || "network"}://${network.host || "未知"}${network.port ? `:${network.port}` : ""}`);
+  else if (isFile) lines.push(`范围：${request.grantRoot || "当前 Task 工作区"}`);
+  else lines.push(`内容：${clip(redactSensitive(commandText(request)), 800) || "Codex 未提供命令预览"}`);
+  if (request.reason) lines.push(`原因：${clip(request.reason, 500)}`);
+  lines.push("", `批准一次：approve ${code}`, `拒绝：reject ${code}`, "", "审批码仅对当前飞书会话和本次请求有效。");
+  return lines.join("\n");
+}
+
+function approvalSummary(request = {}) {
+  if (request.networkApprovalContext) return `${request.networkApprovalContext.protocol || "network"}://${request.networkApprovalContext.host || "未知"}`;
+  if (request.method === "item/fileChange/requestApproval") return request.grantRoot || request.reason || "文件修改";
+  return redactSensitive(commandText(request)) || request.reason || "命令执行";
+}
+
+function commandText(value = {}) {
+  if (typeof value.command === "string") return value.command;
+  if (Array.isArray(value.command)) return value.command.join(" ");
+  if (Array.isArray(value.commandActions)) return value.commandActions.map((action) => action.command || action.cmd || JSON.stringify(action)).join("\n");
+  return "";
+}
+
+function summarizeChanges(changes = []) {
+  if (!Array.isArray(changes)) return "";
+  return changes.slice(0, 5).map((change) => change.path || change.filePath || change.type || "文件变更").join("、");
+}
+
+function clip(value = "", max = 500) {
+  const text = String(value || "").trim();
+  return text.length <= max ? text : `${text.slice(0, max)}...`;
+}
+
+function redactSensitive(value = "") {
+  return String(value || "")
+    .replace(/((?:api[_-]?key|token|secret|password)\s*[=:]\s*)("[^"]*"|'[^']*'|[^\s]+)/gi, "$1[REDACTED]")
+    .replace(/((?:--api[_-]?key|--token|--secret|--password)\s+)("[^"]*"|'[^']*'|[^\s]+)/gi, "$1[REDACTED]");
 }
