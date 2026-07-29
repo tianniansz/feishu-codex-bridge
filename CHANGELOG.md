@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Windows 全局升级会在停止前记录 Bridge 子进程树，等待或终止确认属于 Bridge 的残留进程后再替换 npm 包目录。
+- Windows npm 升级重试延长释放等待；持续 `EBUSY` 时明确提示终端工作目录或安全软件等外部占用。
 - `open` 和 `status` 支持刷新其他 Codex 入口发起的长任务，根据最新持久化 turn 显示执行状态与进展。
 - `notLoaded` 不再误报为 `Waiting User`；无法确认时显示 `Unknown`，外部任务执行中禁止追加并发消息。
 - `doctor --tasks` 增加原始 thread/turn 状态和 Bridge 判定输出。

@@ -25,7 +25,8 @@ function Install-BridgeCliPackageWithRetry {
     [Parameter(Mandatory = $true)][string]$PackageFile,
     [string]$NpmCommand = "npm.cmd",
     [int]$MaxAttempts = 3,
-    [int]$RetryDelayMilliseconds = 1000
+    [int]$RetryDelayMilliseconds = 3000,
+    [string]$GlobalPackageDir
   )
 
   for ($Attempt = 1; $Attempt -le $MaxAttempts; $Attempt++) {
@@ -40,12 +41,51 @@ function Install-BridgeCliPackageWithRetry {
 
     if ($InstallExitCode -eq 0) { return }
     if ($Attempt -ge $MaxAttempts) {
-      throw "CLI 全局安装连续失败 $MaxAttempts 次。请关闭占用 npm 全局目录的程序后重试。"
+      $TargetHint = if ([string]::IsNullOrWhiteSpace($GlobalPackageDir)) { "npm 全局包目录" } else { $GlobalPackageDir }
+      throw "CLI 全局安装连续失败 $MaxAttempts 次。Bridge 进程树已停止；请关闭工作目录位于 '$TargetHint' 的终端或文件管理工具，并检查安全软件占用后重试。"
     }
 
     Write-Warning "CLI 安装失败，可能是 Windows 文件锁尚未释放；即将进行第 $($Attempt + 1)/$MaxAttempts 次尝试。"
     Start-Sleep -Milliseconds ($RetryDelayMilliseconds * $Attempt)
   }
+}
+
+function Get-BridgeDescendantProcessIds {
+  param([Parameter(Mandatory = $true)][int]$RootProcessId)
+
+  $Seen = @{}
+  $Pending = New-Object System.Collections.Queue
+  $Pending.Enqueue($RootProcessId)
+  while ($Pending.Count -gt 0) {
+    $ParentId = [int]$Pending.Dequeue()
+    try {
+      $Children = @(Get-CimInstance Win32_Process -Filter "ParentProcessId = $ParentId" -ErrorAction SilentlyContinue)
+    } catch {
+      $Children = @()
+    }
+    foreach ($Child in $Children) {
+      $ChildId = [int]$Child.ProcessId
+      if ($ChildId -le 0 -or $Seen.ContainsKey($ChildId)) { continue }
+      $Seen[$ChildId] = $true
+      $Pending.Enqueue($ChildId)
+    }
+  }
+  return @($Seen.Keys | ForEach-Object { [int]$_ })
+}
+
+function Wait-BridgeProcessIdsExit {
+  param(
+    [int[]]$ProcessIds = @(),
+    [int]$TimeoutMilliseconds = 5000
+  )
+
+  $Deadline = [DateTime]::UtcNow.AddMilliseconds($TimeoutMilliseconds)
+  do {
+    $Remaining = @($ProcessIds | Where-Object { Get-Process -Id $_ -ErrorAction SilentlyContinue })
+    if ($Remaining.Count -eq 0) { return @() }
+    Start-Sleep -Milliseconds 250
+  } while ([DateTime]::UtcNow -lt $Deadline)
+  return @($Remaining | ForEach-Object { [int]$_ })
 }
 
 function Stop-InstalledBridgeForUpgrade {
@@ -66,6 +106,15 @@ function Stop-InstalledBridgeForUpgrade {
   $PreviousErrorActionPreference = $ErrorActionPreference
   $PowerShellExe = (Get-Process -Id $PID).Path
   $StopScript = Join-Path $ProjectRoot "stop.ps1"
+  $PidFile = Join-Path (Join-Path $DataDir "runtime") "bridge.pid"
+  $TrackedProcessIds = @()
+  if (Test-Path -LiteralPath $PidFile -PathType Leaf) {
+    $BridgePidText = (Get-Content -LiteralPath $PidFile -Raw).Trim()
+    $BridgePid = 0
+    if ([int]::TryParse($BridgePidText, [ref]$BridgePid) -and $BridgePid -gt 0) {
+      $TrackedProcessIds = @($BridgePid) + @(Get-BridgeDescendantProcessIds -RootProcessId $BridgePid)
+    }
+  }
   try {
     $env:FEISHU_CODEX_HOME = [IO.Path]::GetFullPath($DataDir)
     $ErrorActionPreference = "Continue"
@@ -80,6 +129,23 @@ function Stop-InstalledBridgeForUpgrade {
     }
   }
   if ($StopOutput) { $StopOutput | Out-Host }
+  if ($StopExitCode -ne 0) { return [int]$StopExitCode }
+
+  $RemainingProcessIds = @(Wait-BridgeProcessIdsExit -ProcessIds $TrackedProcessIds -TimeoutMilliseconds 5000)
+  if ($RemainingProcessIds.Count -gt 0) {
+    Write-Warning "Bridge 子进程未随主服务退出，将停止已确认的进程：$($RemainingProcessIds -join ', ')"
+    foreach ($ProcessId in $RemainingProcessIds) {
+      Stop-Process -Id $ProcessId -Force -ErrorAction SilentlyContinue
+    }
+    $RemainingProcessIds = @(Wait-BridgeProcessIdsExit -ProcessIds $RemainingProcessIds -TimeoutMilliseconds 5000)
+    if ($RemainingProcessIds.Count -gt 0) {
+      Write-Warning "以下 Bridge 进程仍未退出：$($RemainingProcessIds -join ', ')"
+      return 1
+    }
+  }
+
+  # Give Windows a short, deterministic window to release cwd/module handles.
+  Start-Sleep -Milliseconds 1500
   return [int]$StopExitCode
 }
 

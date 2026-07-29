@@ -105,3 +105,20 @@ tokenStatus: not_configured
 - 自动化测试从 12 项增加至 15 项并全部通过。
 
 代码级 P0/P1 已解除。真实飞书消息链路仍需有效 bot Profile 才能完成最终补测。
+
+## RC4 远程升级复验
+
+### 结论
+
+**不通过。** 阿里云 Windows 验收机从全局安装的 `0.2.0-rc.3` 升级 `0.2.0-rc.4` 时，旧 Bridge 主进程 PID `7544` 已停止，但 npm 连续三次因 `EBUSY` 无法重命名旧全局包目录。RC4 未安装成功，因此 `open`、`status` 与 `doctor --tasks` 的状态一致性验收未能开始。
+
+### 只读诊断结果
+
+- 失败后三次 npm 日志均指向同一旧包目录和同一 rename 阶段；
+- PID `7544`、`bridge.pid`、`bridge.ready`、`bridge.stop` 均已不存在；
+- 未发现残留的 Bridge、`src\\index.js`、`lark-cli event consume` 进程；
+- 未发现 `FeishuCodexBridge-Administrator` 或相近名称的计划任务；
+- 全局安装仍为 `0.2.0-rc.3`，未产生残留的 `.feishu-codex-bridge-*` 目录；
+- 系统 `openfiles` 未启用本地对象列表，无法追溯失败发生时的唯一持锁进程。
+
+该问题由 `0.2.0-rc.5` 接续修复并重新验收；RC4 不进入正式版发布流程。

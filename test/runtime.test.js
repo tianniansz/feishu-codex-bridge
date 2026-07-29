@@ -192,7 +192,7 @@ test("Windows 源码向导保留 CLI stdin 并关闭 lark-cli 二次确认", { s
 test("Windows 升级先停止旧服务并隐藏成功打包的原始输出", { skip: process.platform !== "win32" }, async () => {
   const setupScript = await fs.readFile(path.resolve("setup.ps1"), "utf8");
   const stopIndex = setupScript.indexOf("$StopExitCode = Stop-InstalledBridgeForUpgrade -ProjectRoot $ProjectRoot");
-  const installIndex = setupScript.indexOf("Install-BridgeCliPackageWithRetry -PackageFile $PackageFile", stopIndex);
+  const installIndex = setupScript.indexOf("Install-BridgeCliPackageWithRetry -PackageFile $PackageFile -GlobalPackageDir $GlobalPackageDir", stopIndex);
 
   assert.ok(stopIndex >= 0);
   assert.ok(installIndex > stopIndex);
@@ -200,6 +200,34 @@ test("Windows 升级先停止旧服务并隐藏成功打包的原始输出", { s
   assert.match(setupScript, /\$PackOutput = & npm\.cmd pack --silent/);
   assert.match(setupScript, /CLI 安装包生成完成/);
   assert.doesNotMatch(setupScript, /npm\.cmd pack --silent[^\r\n]*\| Out-Host/);
+});
+
+test("Windows 升级停止前记录 Bridge 子进程并确认全部退出", { skip: process.platform !== "win32" }, async () => {
+  const helperScript = await fs.readFile(path.resolve("scripts", "windows-helpers.ps1"), "utf8");
+
+  assert.match(helperScript, /Get-BridgeDescendantProcessIds -RootProcessId \$BridgePid/);
+  assert.match(helperScript, /Wait-BridgeProcessIdsExit -ProcessIds \$TrackedProcessIds/);
+  assert.match(helperScript, /Stop-Process -Id \$ProcessId -Force/);
+  assert.match(helperScript, /Bridge 进程树已停止/);
+  assert.match(helperScript, /RetryDelayMilliseconds = 3000/);
+});
+
+test("Windows 助手递归收集 Bridge 子进程", { skip: process.platform !== "win32" }, () => {
+  const helperPath = path.resolve("scripts", "windows-helpers.ps1").replaceAll("'", "''");
+  const script = [
+    `. '${helperPath}'`,
+    `function Get-CimInstance { [CmdletBinding()] param([string]$ClassName, [string]$Filter)` +
+      ` if ($Filter -eq 'ParentProcessId = 100') { [pscustomobject]@{ ProcessId = 101 } }` +
+      ` elseif ($Filter -eq 'ParentProcessId = 101') { [pscustomobject]@{ ProcessId = 102 } } }`,
+    `$ids = @(Get-BridgeDescendantProcessIds -RootProcessId 100)`,
+    `if ($ids.Count -ne 2 -or $ids -notcontains 101 -or $ids -notcontains 102) { Write-Error ($ids -join ','); exit 61 }`
+  ].join("; ");
+  const result = spawnSync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script], {
+    encoding: "utf8",
+    windowsHide: true
+  });
+
+  assert.equal(result.status, 0, result.stderr || result.stdout);
 });
 
 test("Windows source updater stops the installed runtime without invoking the old global CLI", { skip: process.platform !== "win32" }, async (t) => {

@@ -100,14 +100,15 @@ function Install-And-RunBridgeCli {
     Write-Host "CLI 安装包生成完成：$([IO.Path]::GetFileName($PackageFile))" -ForegroundColor Green
 
     $ExistingCli = Get-Command "feishu-codex-bridge.cmd" -ErrorAction SilentlyContinue
+    $GlobalPackageDir = $null
     if ($ExistingCli) {
+      $GlobalPackageDir = Join-Path (Join-Path (Split-Path -Parent $ExistingCli.Source) "node_modules") "feishu-codex-bridge"
       Write-Host "正在停止旧版本服务并释放安装目录..." -ForegroundColor Cyan
       $StopExitCode = Stop-InstalledBridgeForUpgrade -ProjectRoot $ProjectRoot
       if ($StopExitCode -ne 0) { throw "旧版本服务停止失败，无法安全升级。" }
-      Start-Sleep -Milliseconds 750
     }
 
-    Install-BridgeCliPackageWithRetry -PackageFile $PackageFile
+    Install-BridgeCliPackageWithRetry -PackageFile $PackageFile -GlobalPackageDir $GlobalPackageDir
   } finally {
     Remove-Item -LiteralPath $PackageFile -Force -ErrorAction SilentlyContinue
   }
