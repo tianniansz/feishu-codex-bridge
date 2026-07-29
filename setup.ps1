@@ -79,7 +79,7 @@ function Ensure-Node {
 
 function Install-And-RunBridgeCli {
   $UseCli = Read-WithDefault "是否安装统一管理命令 feishu-codex-bridge？输入 y 或 n" "y"
-  if ($UseCli -notmatch "^(y|yes)$") { return $false }
+  if ($UseCli -notmatch "^(y|yes)$") { return }
 
   $TempDir = [IO.Path]::GetTempPath()
   $PackageFile = Get-BridgePackageArchivePath -ProjectRoot $ProjectRoot -Destination $TempDir
@@ -89,7 +89,7 @@ function Install-And-RunBridgeCli {
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $PackageFile -PathType Leaf)) {
       throw "CLI 安装包生成失败：未找到 $PackageFile"
     }
-    & npm.cmd install -g $PackageFile | Out-Host
+    & npm.cmd install -g $PackageFile
     if ($LASTEXITCODE -ne 0) { throw "CLI 全局安装失败。" }
   } finally {
     Remove-Item -LiteralPath $PackageFile -Force -ErrorAction SilentlyContinue
@@ -102,11 +102,11 @@ function Install-And-RunBridgeCli {
   }
 
   Write-Host "统一管理命令安装完成，继续进入配置向导。" -ForegroundColor Green
-  & $CliCommand setup | Out-Host
+  & $CliCommand setup
   if ($LASTEXITCODE -ne 0) {
     throw "CLI 配置向导退出，代码 $LASTEXITCODE。请直接运行 feishu-codex-bridge setup 查看原始错误。"
   }
-  return $true
+  exit 0
 }
 
 function Ensure-CodexLogin {
@@ -127,10 +127,10 @@ Write-Host ""
 
 Ensure-Node
 Require-Command "npm" "Node.js 安装不完整，请重新安装 Node.js。"
-if (-not $BridgePaths.CliMode -and (Install-And-RunBridgeCli)) { exit 0 }
+if (-not $BridgePaths.CliMode) { Install-And-RunBridgeCli }
 Offer-Install "codex" "未找到 Codex CLI，是否通过 npm 安装？输入 y 或 n" { npm install -g @openai/codex }
 Ensure-CodexLogin
-Offer-Install "lark-cli" "未找到 lark-cli，是否安装飞书官方 CLI？输入 y 或 n" { npx @larksuite/cli@latest install }
+Offer-Install "lark-cli" "未找到 lark-cli，是否安装飞书官方 CLI？输入 y 或 n" { npx.cmd --yes @larksuite/cli@latest install }
 
 $Profile = Read-WithDefault "请输入 lark-cli Profile 名称" "codex-bridge"
 if (-not (Test-LarkProfile -Profile $Profile)) {

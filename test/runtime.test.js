@@ -115,6 +115,14 @@ test("Windows 登录检查忽略 Codex 写入 stderr 的成功信息", { skip: p
   assert.doesNotMatch(result.stdout + result.stderr, /masked key/);
 });
 
+test("Windows 源码向导保留 CLI stdin 并关闭 lark-cli 二次确认", { skip: process.platform !== "win32" }, async () => {
+  const setupScript = await fs.readFile(path.resolve("setup.ps1"), "utf8");
+  assert.match(setupScript, /& \$CliCommand setup\s*\r?\n/);
+  assert.doesNotMatch(setupScript, /& \$CliCommand setup\s*\|/);
+  assert.match(setupScript, /npx\.cmd --yes @larksuite\/cli@latest install/);
+  assert.doesNotMatch(setupScript, /Install-And-RunBridgeCli\)\)/);
+});
+
 test("Windows 启动脚本在缺少 Node.js 时返回配置向导提示", { skip: process.platform !== "win32" }, () => {
   const startPath = path.resolve("start.ps1").replaceAll("'", "''");
   const powershellPath = path.join(process.env.SystemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
