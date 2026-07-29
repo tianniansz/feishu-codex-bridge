@@ -1,5 +1,4 @@
 import { spawn } from "node:child_process";
-import fs from "node:fs/promises";
 import path from "node:path";
 import { logger } from "../logger.js";
 
@@ -28,35 +27,19 @@ export class LarkClient {
   }
 
   async sendChunk({ messageId, chatId, text, idempotencyKey }) {
-    const useChatSend = Boolean(chatId);
-    const jsonFile = useChatSend ? await this.writeMessageFile(chatId, text) : "";
-    const args = useChatSend
-      ? ["api", "POST", "/open-apis/im/v1/messages", "--params", JSON.stringify({ receive_id_type: "chat_id" }), "--data", `@${jsonFile}`, "--as", this.replyAs, "--format", "json"]
-      : ["im", "+messages-reply", "--message-id", messageId, "--text", text, "--as", this.replyAs, "--format", "json"];
-    if (idempotencyKey && !useChatSend) args.push("--idempotency-key", idempotencyKey);
+    const args = messageId
+      ? ["im", "+messages-reply", "--message-id", messageId, "--text", text, "--as", this.replyAs, "--format", "json"]
+      : ["im", "+messages-send", "--chat-id", chatId, "--text", text, "--as", this.replyAs, "--format", "json"];
+    if (idempotencyKey) args.push("--idempotency-key", idempotencyKey);
 
-    try {
-      const output = await this.runner(this.bin, this.withProfile(args));
-      return parseJsonOutput(output.stdout);
-    } finally {
-      if (jsonFile) await fs.unlink(path.resolve(process.cwd(), jsonFile)).catch(() => {});
-    }
+    const output = await this.runner(this.bin, this.withProfile(args));
+    return parseJsonOutput(output.stdout);
   }
 
   withProfile(args) {
     return this.profile ? ["--profile", this.profile, ...args] : args;
   }
 
-  async writeMessageFile(chatId, text) {
-    await fs.mkdir(this.runtimeDir, { recursive: true });
-    const absolutePath = path.join(this.runtimeDir, `message-${process.pid}-${Date.now()}.json`);
-    await fs.writeFile(absolutePath, JSON.stringify({
-      receive_id: chatId,
-      msg_type: "text",
-      content: JSON.stringify({ text })
-    }), "utf8");
-    return path.relative(process.cwd(), absolutePath);
-  }
 }
 
 export function runCommand(bin, args, { stdin = "ignore" } = {}) {
@@ -72,10 +55,64 @@ export function runCommand(bin, args, { stdin = "ignore" } = {}) {
     child.on("error", reject);
     child.on("close", (code) => {
       if (code === 0) return resolve({ stdout, stderr });
-      logger.error("command.failed", { bin: path.basename(bin), code });
-      reject(new Error(`${path.basename(bin)} 执行失败，退出码 ${code}。请运行 npm run doctor 查看详情。`));
+      const failure = parseCommandFailure(stderr);
+      logger.error("command.failed", {
+        bin: path.basename(bin),
+        code,
+        errorType: failure.type,
+        errorSubtype: failure.subtype,
+        missingScopes: failure.missingScopes
+      });
+      const detail = failure.summary ? ` ${failure.summary}` : "";
+      reject(new Error(`${path.basename(bin)} 执行失败，退出码 ${code}。${detail}`.trim()));
     });
   });
+}
+
+export function parseCommandFailure(stderr) {
+  const envelope = parseErrorEnvelope(stderr);
+  const error = envelope?.error;
+  if (error && typeof error === "object") {
+    const missingScopes = Array.isArray(error.missing_scopes)
+      ? error.missing_scopes.map(String)
+      : [];
+    const parts = [error.message, error.hint].filter((value) => typeof value === "string" && value.trim());
+    if (missingScopes.length) parts.push(`缺少机器人权限：${missingScopes.join(", ")}`);
+    return {
+      type: String(error.type || ""),
+      subtype: String(error.subtype || ""),
+      missingScopes,
+      summary: redactDiagnostic(parts.join(" "))
+    };
+  }
+
+  return {
+    type: "",
+    subtype: "",
+    missingScopes: [],
+    summary: redactDiagnostic(String(stderr || "").trim().split(/\r?\n/).filter(Boolean).at(-1) || "")
+  };
+}
+
+function parseErrorEnvelope(stderr) {
+  const value = String(stderr || "").trim();
+  if (!value) return null;
+  for (const candidate of [value, ...value.split(/\r?\n/).reverse()]) {
+    try {
+      const parsed = JSON.parse(candidate);
+      if (parsed?.error) return parsed;
+    } catch {
+      // Continue looking for a structured lark-cli error line.
+    }
+  }
+  return null;
+}
+
+function redactDiagnostic(value) {
+  return String(value || "")
+    .replace(/\bsk-[A-Za-z0-9_-]{8,}\b/g, "sk-***")
+    .replace(/\b(access|refresh|tenant)_token\s*[:=]\s*[^\s,}]+/gi, "$1_token=***")
+    .slice(0, 800);
 }
 
 export function windowsCommand(bin, args) {

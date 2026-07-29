@@ -54,6 +54,30 @@ test("事件监听等待 ready marker 并通过 stdin EOF 优雅停止", async (
   assert.equal(harness.child.stdin.writableEnded, true);
 });
 
+test("单条飞书消息回复失败不会退出事件服务", async () => {
+  const runner = new LarkEventRunner({
+    config: { bin: "lark-cli", profile: "test", eventAs: "bot", allowGroupChats: false },
+    client: { async replyText() { throw new Error("reply failed"); } },
+    router: {},
+    accessStore: {
+      async tryPair() { return { matched: true, ok: true }; }
+    },
+    eventStore: { async claim() { return true; } }
+  });
+
+  await assert.doesNotReject(() => runner.handleLineSafely(JSON.stringify({
+    type: "im.message.receive_v1",
+    event_id: "evt_test",
+    message_id: "om_test",
+    chat_id: "oc_test",
+    sender_id: "ou_test",
+    sender_type: "user",
+    chat_type: "p2p",
+    message_type: "text",
+    content: "pair 123456"
+  })));
+});
+
 test("Windows 助手可识别 Profile 状态并规范化启动环境", { skip: process.platform !== "win32" }, () => {
   const helperPath = path.resolve("scripts", "windows-helpers.ps1").replaceAll("'", "''");
   const script = [
@@ -80,7 +104,7 @@ test("Windows 安装向导按 package.json 计算 npm 包路径", { skip: proces
   const script = [
     `. '${helperPath}'`,
     `$archive = Get-BridgePackageArchivePath -ProjectRoot '${projectRoot}' -Destination '${destination}'`,
-    `if ([IO.Path]::GetFileName($archive) -ne 'feishu-codex-bridge-0.2.0-beta.1.tgz') { Write-Error $archive; exit 41 }`
+    `if ([IO.Path]::GetFileName($archive) -ne 'feishu-codex-bridge-0.2.0-beta.2.tgz') { Write-Error $archive; exit 41 }`
   ].join("; ");
   const result = spawnSync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script], {
     encoding: "utf8",

@@ -34,7 +34,7 @@ export class LarkEventRunner {
       const lines = buffer.split(/\r?\n/);
       buffer = lines.pop() || "";
       for (const line of lines) {
-        if (ready) void this.handleLine(line);
+        if (ready) void this.handleLineSafely(line);
         else pendingLines.push(line);
       }
     });
@@ -47,7 +47,7 @@ export class LarkEventRunner {
             logger.error("lark.event.ready_callback_failed", { error: error.message });
             this.stop();
           });
-          for (const pendingLine of pendingLines.splice(0)) void this.handleLine(pendingLine);
+          for (const pendingLine of pendingLines.splice(0)) void this.handleLineSafely(pendingLine);
         }
         else logger.info("lark.event.status", { message: line });
       }
@@ -104,6 +104,14 @@ export class LarkEventRunner {
     } catch (error) {
       logger.error("bridge.handle.failed", { error: error.message });
       await this.reply(event, `处理失败：${error.message}`);
+    }
+  }
+
+  async handleLineSafely(line) {
+    try {
+      await this.handleLine(line);
+    } catch (error) {
+      logger.error("lark.event.handle_failed", { error: error.message });
     }
   }
 
