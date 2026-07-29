@@ -102,8 +102,8 @@ function Install-And-RunBridgeCli {
     $ExistingCli = Get-Command "feishu-codex-bridge.cmd" -ErrorAction SilentlyContinue
     if ($ExistingCli) {
       Write-Host "正在停止旧版本服务并释放安装目录..." -ForegroundColor Cyan
-      & $ExistingCli.Source stop
-      if ($LASTEXITCODE -ne 0) { throw "旧版本服务停止失败，无法安全升级。" }
+      $StopExitCode = Stop-InstalledBridgeForUpgrade -ProjectRoot $ProjectRoot
+      if ($StopExitCode -ne 0) { throw "旧版本服务停止失败，无法安全升级。" }
       Start-Sleep -Milliseconds 750
     }
 

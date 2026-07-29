@@ -191,14 +191,34 @@ test("Windows 源码向导保留 CLI stdin 并关闭 lark-cli 二次确认", { s
 
 test("Windows 升级先停止旧服务并隐藏成功打包的原始输出", { skip: process.platform !== "win32" }, async () => {
   const setupScript = await fs.readFile(path.resolve("setup.ps1"), "utf8");
-  const stopIndex = setupScript.indexOf("& $ExistingCli.Source stop");
+  const stopIndex = setupScript.indexOf("$StopExitCode = Stop-InstalledBridgeForUpgrade -ProjectRoot $ProjectRoot");
   const installIndex = setupScript.indexOf("Install-BridgeCliPackageWithRetry -PackageFile $PackageFile", stopIndex);
 
   assert.ok(stopIndex >= 0);
   assert.ok(installIndex > stopIndex);
+  assert.doesNotMatch(setupScript, /& \$ExistingCli\.Source stop/);
   assert.match(setupScript, /\$PackOutput = & npm\.cmd pack --silent/);
   assert.match(setupScript, /CLI 安装包生成完成/);
   assert.doesNotMatch(setupScript, /npm\.cmd pack --silent[^\r\n]*\| Out-Host/);
+});
+
+test("Windows source updater stops the installed runtime without invoking the old global CLI", { skip: process.platform !== "win32" }, async (t) => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "feishu-codex-source-stop-"));
+  t.after(() => fs.rm(directory, { recursive: true, force: true }));
+  const helperPath = path.resolve("scripts", "windows-helpers.ps1").replaceAll("'", "''");
+  const projectRoot = path.resolve(".").replaceAll("'", "''");
+  const dataDir = directory.replaceAll("'", "''");
+  const script = [
+    `. '${helperPath}'`,
+    `$code = Stop-InstalledBridgeForUpgrade -ProjectRoot '${projectRoot}' -DataDir '${dataDir}'`,
+    "if ($code -ne 0) { exit $code }"
+  ].join("; ");
+  const result = spawnSync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script], {
+    encoding: "utf8",
+    windowsHide: true
+  });
+
+  assert.equal(result.status, 0, result.stderr || result.stdout);
 });
 
 test("Windows CLI installer retries a transient global install failure three times", { skip: process.platform !== "win32" }, async (t) => {

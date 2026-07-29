@@ -10,12 +10,12 @@
 npm.cmd pack
 ```
 
-命令会生成类似 `feishu-codex-bridge-0.2.0-rc.1.tgz` 的文件。
+命令会生成类似 `feishu-codex-bridge-0.2.0-rc.2.tgz` 的文件。
 
 ## 全局安装
 
 ```powershell
-npm.cmd install -g .\feishu-codex-bridge-0.2.0-rc.1.tgz
+npm.cmd install -g .\feishu-codex-bridge-0.2.0-rc.2.tgz
 feishu-codex-bridge version
 feishu-codex-bridge help
 feishu-codex-bridge setup

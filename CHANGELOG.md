@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 源码升级时使用当前源码副本停止现有服务，不再加载即将被 npm 替换的旧全局 CLI 目录。
 - 升级全局 CLI 时等待 Windows 文件句柄释放，安装失败后最多退避重试三次。
 - 增加 `feishu-codex-bridge doctor --tasks`，在本机解释 Task 白名单、worktree 和归档过滤原因。
 - 修复 Codex 托管 worktree 位于允许目录外时被 `tasks` 错误过滤的问题；仅在其 Git 原始仓库位于允许目录内时放行。

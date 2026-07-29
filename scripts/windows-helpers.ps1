@@ -48,6 +48,36 @@ function Install-BridgeCliPackageWithRetry {
   }
 }
 
+function Stop-InstalledBridgeForUpgrade {
+  param(
+    [Parameter(Mandatory = $true)][string]$ProjectRoot,
+    [string]$DataDir = $env:FEISHU_CODEX_HOME
+  )
+
+  if ([string]::IsNullOrWhiteSpace($DataDir)) {
+    $LocalAppData = [Environment]::GetFolderPath("LocalApplicationData")
+    if ([string]::IsNullOrWhiteSpace($LocalAppData)) {
+      throw "无法确定当前 Windows 用户的本地数据目录。"
+    }
+    $DataDir = Join-Path $LocalAppData "FeishuCodexBridge"
+  }
+
+  $PreviousHome = [Environment]::GetEnvironmentVariable("FEISHU_CODEX_HOME", "Process")
+  $PowerShellExe = (Get-Process -Id $PID).Path
+  $StopScript = Join-Path $ProjectRoot "stop.ps1"
+  try {
+    $env:FEISHU_CODEX_HOME = [IO.Path]::GetFullPath($DataDir)
+    & $PowerShellExe -NoProfile -ExecutionPolicy Bypass -File $StopScript
+    return $LASTEXITCODE
+  } finally {
+    if ($null -eq $PreviousHome) {
+      Remove-Item Env:\FEISHU_CODEX_HOME -ErrorAction SilentlyContinue
+    } else {
+      $env:FEISHU_CODEX_HOME = $PreviousHome
+    }
+  }
+}
+
 function Get-BridgeDataPaths {
   param([string]$ProjectRoot)
 
