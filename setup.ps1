@@ -82,12 +82,13 @@ function Install-And-RunBridgeCli {
   if ($UseCli -notmatch "^(y|yes)$") { return $false }
 
   $TempDir = [IO.Path]::GetTempPath()
-  $PackOutput = @(& npm.cmd pack --silent --pack-destination $TempDir)
-  if ($LASTEXITCODE -ne 0 -or $PackOutput.Count -eq 0) {
-    throw "CLI 安装包生成失败。"
-  }
-  $PackageFile = Join-Path $TempDir $PackOutput[-1].Trim()
+  $PackageFile = Get-BridgePackageArchivePath -ProjectRoot $ProjectRoot -Destination $TempDir
+  Remove-Item -LiteralPath $PackageFile -Force -ErrorAction SilentlyContinue
   try {
+    & npm.cmd pack --silent --pack-destination $TempDir | Out-Host
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $PackageFile -PathType Leaf)) {
+      throw "CLI 安装包生成失败：未找到 $PackageFile"
+    }
     & npm.cmd install -g $PackageFile
     if ($LASTEXITCODE -ne 0) { throw "CLI 全局安装失败。" }
   } finally {

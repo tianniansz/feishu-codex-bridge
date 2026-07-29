@@ -73,6 +73,23 @@ test("Windows 助手可识别 Profile 状态并规范化启动环境", { skip: p
   assert.equal(result.status, 0, result.stderr || result.stdout);
 });
 
+test("Windows 安装向导按 package.json 计算 npm 包路径", { skip: process.platform !== "win32" }, () => {
+  const helperPath = path.resolve("scripts", "windows-helpers.ps1").replaceAll("'", "''");
+  const projectRoot = path.resolve(".").replaceAll("'", "''");
+  const destination = path.resolve(os.tmpdir()).replaceAll("'", "''");
+  const script = [
+    `. '${helperPath}'`,
+    `$archive = Get-BridgePackageArchivePath -ProjectRoot '${projectRoot}' -Destination '${destination}'`,
+    `if ([IO.Path]::GetFileName($archive) -ne 'feishu-codex-bridge-0.2.0-beta.1.tgz') { Write-Error $archive; exit 41 }`
+  ].join("; ");
+  const result = spawnSync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script], {
+    encoding: "utf8",
+    windowsHide: true
+  });
+
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+});
+
 test("Windows 启动脚本在缺少 Node.js 时返回配置向导提示", { skip: process.platform !== "win32" }, () => {
   const startPath = path.resolve("start.ps1").replaceAll("'", "''");
   const powershellPath = path.join(process.env.SystemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");

@@ -6,6 +6,7 @@
 - 全局安装模式将配置、状态和日志迁移到 `%LOCALAPPDATA%\FeishuCodexBridge`。
 - 支持通过 Windows 计划任务为当前 Codex 用户配置登录后自动启动。
 - 配置向导和自检会验证 Codex CLI 登录状态。
+- 修复 Windows 向导将 `npm pack` 的中文检查输出误识别为安装包路径的问题。
 - 支持 Task 搜索、项目过滤和分页。
 - 增加 `status` 执行阶段查询与节流进度通知。
 - 支持在原飞书会话中单次批准或拒绝 Codex 命令/文件修改请求。

@@ -42,6 +42,25 @@ function Get-BridgeDataPaths {
   }
 }
 
+function Get-BridgePackageArchivePath {
+  param(
+    [string]$ProjectRoot,
+    [string]$Destination
+  )
+
+  $PackageJsonPath = Join-Path $ProjectRoot "package.json"
+  $Metadata = Get-Content -LiteralPath $PackageJsonPath -Raw -Encoding UTF8 | ConvertFrom-Json
+  if ([string]::IsNullOrWhiteSpace($Metadata.name) -or [string]::IsNullOrWhiteSpace($Metadata.version)) {
+    throw "package.json must include name and version."
+  }
+  $ArchiveName = [string]$Metadata.name
+  if ($ArchiveName.Length -gt 0 -and $ArchiveName[0] -eq [char]64) {
+    $ArchiveName = $ArchiveName.Substring(1)
+  }
+  $ArchiveName = $ArchiveName.Replace([char]47, [char]45).Replace([char]92, [char]45)
+  return Join-Path $Destination "$ArchiveName-$($Metadata.version).tgz"
+}
+
 function Test-LarkWhoamiOutput {
   param([string]$Json)
 
