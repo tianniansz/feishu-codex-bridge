@@ -123,6 +123,18 @@ test("Windows 源码向导保留 CLI stdin 并关闭 lark-cli 二次确认", { s
   assert.doesNotMatch(setupScript, /Install-And-RunBridgeCli\)\)/);
 });
 
+test("Windows 配置向导等待服务 ready 后才生成配对码", { skip: process.platform !== "win32" }, async () => {
+  const setupScript = await fs.readFile(path.resolve("setup.ps1"), "utf8");
+  const doctorIndex = setupScript.indexOf("& node scripts/doctor.mjs");
+  const startIndex = setupScript.indexOf("Restart-BridgeAfterSetup", doctorIndex);
+  const pairingIndex = setupScript.indexOf("& node scripts/pairing.mjs", startIndex);
+
+  assert.ok(doctorIndex >= 0);
+  assert.ok(startIndex > doctorIndex);
+  assert.ok(pairingIndex > startIndex);
+  assert.match(setupScript, /服务已启动并就绪。现在可以向机器人发送上方配对命令/);
+});
+
 test("Windows 启动脚本在缺少 Node.js 时返回配置向导提示", { skip: process.platform !== "win32" }, () => {
   const startPath = path.resolve("start.ps1").replaceAll("'", "''");
   const powershellPath = path.join(process.env.SystemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");

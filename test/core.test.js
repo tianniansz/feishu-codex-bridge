@@ -35,6 +35,20 @@ test("过期配对码不能授权用户", async (t) => {
   assert.equal((await store.tryPair({ senderId: "ou_test" }, `pair ${code}`)).ok, false);
 });
 
+test("运行中的 Bridge 可以读取启动后生成的配对码", async (t) => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "feishu-codex-bridge-"));
+  t.after(() => fs.rm(directory, { recursive: true, force: true }));
+  const filePath = path.join(directory, "access.json");
+  const runningStore = new AccessStore(filePath);
+  const pairingCommandStore = new AccessStore(filePath);
+
+  const { code } = await pairingCommandStore.createPairingCode();
+  const result = await runningStore.tryPair({ senderId: "ou_after_ready" }, `pair ${code}`);
+
+  assert.equal(result.ok, true);
+  assert.equal(await runningStore.isAuthorized({ senderId: "ou_after_ready" }), true);
+});
+
 test("飞书事件适配器提取文本、用户和群聊类型", () => {
   const event = mapLarkCliEvent({
     header: { event_type: "im.message.receive_v1", event_id: "evt_1" },

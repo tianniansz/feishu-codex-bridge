@@ -29,7 +29,7 @@ Set-ExecutionPolicy -Scope Process Bypass
 .\setup.ps1
 ```
 
-`setup.ps1` 会补齐 Node.js，并默认把当前源码打包成全局 CLI。配置完成后，统一使用：
+`setup.ps1` 会补齐 Node.js，默认把当前源码打包成全局 CLI，并在自检通过后自动启动 Bridge、等待飞书事件监听就绪和生成配对码。后续统一使用：
 
 ```powershell
 feishu-codex-bridge start
@@ -44,7 +44,7 @@ feishu-codex-bridge start
 5. 将配置保存到当前用户的 `%LOCALAPPDATA%\FeishuCodexBridge`。
 6. 执行环境自检并生成一次性配对码。
 
-请等待向导显示“配置完成”后再运行 `feishu-codex-bridge start`。
+请等待向导显示“配置完成，服务已启动并就绪”后，再向机器人发送配对命令。无需首次手动运行 `start`。
 
 向机器人发送配对命令后，再发送：
 

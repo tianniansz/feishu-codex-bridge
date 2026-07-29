@@ -39,7 +39,7 @@ Set-ExecutionPolicy -Scope Process Bypass
 5. `lark-cli` Profile 是否可用。
 6. 允许远程操作的项目根目录。
 
-请等待向导显示“配置完成”后再启动服务。CLI 模式的配置保存在 `%LOCALAPPDATA%\FeishuCodexBridge\config.env`，日志和状态保存在其 `runtime` 子目录。
+请等待向导自动完成自检、启动服务并确认飞书事件监听 ready。CLI 模式的配置保存在 `%LOCALAPPDATA%\FeishuCodexBridge\config.env`，日志和状态保存在其 `runtime` 子目录。
 
 如果指定的 Profile 不存在，向导会运行：
 
@@ -81,10 +81,10 @@ feishu-codex-bridge doctor
 
 ## 5. 启动并配对
 
-向导最后会显示六位配对码。启动服务：
+向导会自动启动服务，等待飞书事件监听就绪后才显示六位配对码。可以先确认状态：
 
 ```powershell
-feishu-codex-bridge start
+feishu-codex-bridge status
 ```
 
 向自己的飞书机器人发送：
@@ -99,7 +99,7 @@ pair 123456
 tasks
 ```
 
-后台启动会等待飞书事件监听真正就绪，最长等待 30 秒：
+自动启动会等待飞书事件监听真正就绪，最长等待 30 秒：
 
 ```text
 服务已启动并就绪

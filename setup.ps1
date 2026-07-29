@@ -122,6 +122,18 @@ function Ensure-CodexLogin {
   if (-not (Test-CodexLoginStatus)) { throw "Codex 登录状态仍不可用。" }
 }
 
+function Restart-BridgeAfterSetup {
+  $PowerShellExe = (Get-Process -Id $PID).Path
+  $StopScript = Join-Path $ProjectRoot "stop.ps1"
+  $StartScript = Join-Path $ProjectRoot "start.ps1"
+
+  Write-Host "正在启动 Feishu Codex Bridge，并等待飞书事件监听就绪..." -ForegroundColor Cyan
+  & $PowerShellExe -NoProfile -ExecutionPolicy Bypass -File $StopScript
+  if ($LASTEXITCODE -ne 0) { throw "停止旧 Bridge 进程失败，退出码 $LASTEXITCODE。" }
+  & $PowerShellExe -NoProfile -ExecutionPolicy Bypass -File $StartScript
+  if ($LASTEXITCODE -ne 0) { throw "Bridge 启动失败，退出码 $LASTEXITCODE。请运行 feishu-codex-bridge logs 查看详情。" }
+}
+
 Write-Host "Feishu Codex Bridge 配置向导" -ForegroundColor Cyan
 Write-Host ""
 
@@ -187,7 +199,10 @@ Write-Host ""
 if ($LASTEXITCODE -ne 0) { throw "环境自检失败，请按上方提示处理。" }
 
 Write-Host ""
-& node scripts/pairing.mjs
+Restart-BridgeAfterSetup
+
 Write-Host ""
-$StartGuide = if ($BridgePaths.CliMode) { "feishu-codex-bridge start" } else { ".\start.ps1" }
-Write-Host "配置完成。运行 $StartGuide 启动服务。" -ForegroundColor Green
+& node scripts/pairing.mjs
+if ($LASTEXITCODE -ne 0) { throw "服务已启动，但配对码生成失败。请运行 feishu-codex-bridge pairing 重试。" }
+Write-Host ""
+Write-Host "配置完成，服务已启动并就绪。现在可以向机器人发送上方配对命令。" -ForegroundColor Green
