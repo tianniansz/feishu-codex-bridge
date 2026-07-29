@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import fs from "node:fs";
 import path from "node:path";
 import { logger } from "../logger.js";
 
@@ -28,9 +29,10 @@ export class LarkClient {
 
   async sendChunk({ messageId, chatId, text, idempotencyKey }) {
     const args = messageId
-      ? ["im", "+messages-reply", "--message-id", messageId, "--text", text, "--as", this.replyAs, "--format", "json"]
-      : ["im", "+messages-send", "--chat-id", chatId, "--text", text, "--as", this.replyAs, "--format", "json"];
+      ? ["im", "+messages-reply", "--as", this.replyAs, "--format", "json", "--message-id", messageId]
+      : ["im", "+messages-send", "--as", this.replyAs, "--format", "json", "--chat-id", chatId];
     if (idempotencyKey) args.push("--idempotency-key", idempotencyKey);
+    args.push("--text", text);
 
     const output = await this.runner(this.bin, this.withProfile(args));
     return parseJsonOutput(output.stdout);
@@ -59,6 +61,7 @@ export function runCommand(bin, args, { stdin = "ignore" } = {}) {
       logger.error("command.failed", {
         bin: path.basename(bin),
         code,
+        identity: failure.identity,
         errorType: failure.type,
         errorSubtype: failure.subtype,
         missingScopes: failure.missingScopes
@@ -73,12 +76,17 @@ export function parseCommandFailure(stderr) {
   const envelope = parseErrorEnvelope(stderr);
   const error = envelope?.error;
   if (error && typeof error === "object") {
+    const identity = String(envelope.identity || "");
     const missingScopes = Array.isArray(error.missing_scopes)
       ? error.missing_scopes.map(String)
       : [];
     const parts = [error.message, error.hint].filter((value) => typeof value === "string" && value.trim());
-    if (missingScopes.length) parts.push(`缺少机器人权限：${missingScopes.join(", ")}`);
+    if (missingScopes.length) {
+      const identityLabel = identity === "bot" ? "机器人" : identity === "user" ? "用户" : "当前身份";
+      parts.push(`缺少${identityLabel}权限：${missingScopes.join(", ")}`);
+    }
     return {
+      identity,
       type: String(error.type || ""),
       subtype: String(error.subtype || ""),
       missingScopes,
@@ -87,6 +95,7 @@ export function parseCommandFailure(stderr) {
   }
 
   return {
+    identity: "",
     type: "",
     subtype: "",
     missingScopes: [],
@@ -115,9 +124,36 @@ function redactDiagnostic(value) {
     .slice(0, 800);
 }
 
-export function windowsCommand(bin, args) {
-  if (process.platform !== "win32") return { bin, args };
-  return { bin: process.env.ComSpec || "cmd.exe", args: ["/d", "/s", "/c", bin, ...args] };
+export function windowsCommand(bin, args, options = {}) {
+  const platform = options.platform || process.platform;
+  const env = options.env || process.env;
+  if (platform !== "win32") return { bin, args };
+
+  const larkEntry = resolveLarkCliEntry(bin, env);
+  if (larkEntry) {
+    return { bin: options.nodeBin || process.execPath, args: [larkEntry, ...args] };
+  }
+
+  return { bin: env.ComSpec || "cmd.exe", args: ["/d", "/s", "/c", bin, ...args] };
+}
+
+export function resolveLarkCliEntry(bin, env = process.env) {
+  if (path.basename(String(bin)).toLowerCase() !== "lark-cli.cmd") return "";
+
+  const candidates = path.isAbsolute(bin)
+    ? [bin]
+    : String(env.Path || env.PATH || "")
+      .split(path.delimiter)
+      .map((directory) => directory.trim().replace(/^"|"$/g, ""))
+      .filter(Boolean)
+      .map((directory) => path.join(directory, bin));
+
+  for (const candidate of candidates) {
+    if (!fs.existsSync(candidate)) continue;
+    const entry = path.join(path.dirname(candidate), "node_modules", "@larksuite", "cli", "scripts", "run.js");
+    if (fs.existsSync(entry)) return entry;
+  }
+  return "";
 }
 
 function parseJsonOutput(stdout) {

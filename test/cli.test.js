@@ -27,7 +27,7 @@ test("CLI help 和 version 无需配置即可运行", () => {
   assert.match(help.stdout, /用法：feishu-codex-bridge <命令>/);
   assert.match(help.stdout, /^  setup\s+/m);
   assert.equal(version.status, 0, version.stderr);
-  assert.match(version.stdout, /^0\.2\.0-beta\.2\s*$/);
+  assert.match(version.stdout, /^0\.2\.0-beta\.3\s*$/);
 });
 
 test("CLI config 在未配置时给出用户目录且返回非零状态", () => {

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 修复 Windows 下多行 Task 回复经过 `lark-cli.cmd` 时可能丢失 `--as bot`、错误回退为用户身份的问题。
 - 增加统一的 `feishu-codex-bridge` CLI 和 npm 本地打包安装流程。
 - 全局安装模式将配置、状态和日志迁移到 `%LOCALAPPDATA%\FeishuCodexBridge`。
 - 支持通过 Windows 计划任务为当前 Codex 用户配置登录后自动启动。

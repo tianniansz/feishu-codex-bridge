@@ -1,6 +1,6 @@
 {
   "name": "feishu-codex-bridge",
-  "version": "0.2.0-beta.2",
+  "version": "0.2.0-beta.3",
   "description": "通过自己的飞书机器人远程续聊本机 Codex Task",
   "type": "module",
   "private": false,
