@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -27,7 +28,8 @@ test("CLI help 和 version 无需配置即可运行", () => {
   assert.match(help.stdout, /用法：feishu-codex-bridge <命令>/);
   assert.match(help.stdout, /^  setup\s+/m);
   assert.equal(version.status, 0, version.stderr);
-  assert.match(version.stdout, /^0\.2\.0-beta\.5\s*$/);
+  const packageVersion = JSON.parse(readFileSync(path.resolve("package.json"), "utf8")).version;
+  assert.equal(version.stdout.trim(), packageVersion);
 });
 
 test("CLI config 在未配置时给出用户目录且返回非零状态", () => {

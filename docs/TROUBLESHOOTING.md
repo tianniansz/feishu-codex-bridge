@@ -62,10 +62,33 @@ lark-cli --profile codex-bridge whoami --as bot
 
 ## `tasks` 返回空列表
 
+先运行：
+
+```powershell
+feishu-codex-bridge doctor --tasks
+```
+
 - Codex Desktop 或 Codex CLI 中需要存在已保存 Task
 - Task 工作目录必须位于 `ALLOWED_WORKSPACE_ROOTS` 内
+- Codex 托管 worktree 只有在其 Git 原始仓库位于允许目录内时才会显示
+- 已归档 Task 默认不会出现在飞书 `tasks` 中
 - Windows 路径必须真实存在
 - 修改配置后需要运行 `feishu-codex-bridge restart`
+
+## 升级时出现 npm `EBUSY`
+
+安装向导会在停止旧服务后等待文件句柄释放，并最多自动尝试三次。三次仍失败时，先检查是否仍有 Bridge 进程：
+
+```powershell
+Get-CimInstance Win32_Process |
+  Where-Object {
+    $_.Name -eq "node.exe" -and
+    $_.CommandLine -match "feishu-codex-bridge"
+  } |
+  Select-Object ProcessId, ParentProcessId, CommandLine
+```
+
+不要使用 `Stop-Process -Name node -Force`，它可能终止电脑上的其他 Node.js 服务。
 
 ## 配对码失效
 

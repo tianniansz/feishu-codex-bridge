@@ -3,11 +3,16 @@ import path from "node:path";
 import { loadDotEnv } from "../src/env.js";
 import { loadConfig } from "../src/config.js";
 import { AccessStore } from "../src/core/accessStore.js";
+import { DeveloperProjectStore } from "../src/core/projectStore.js";
+import { DeveloperSessionStore } from "../src/core/sessionStore.js";
+import { CodexAppServerClient } from "../src/codex/appServerClient.js";
 import { runCommand } from "../src/lark/client.js";
 
 loadDotEnv();
 
 const checks = [];
+const includeTaskDiagnostics = process.argv.includes("--tasks");
+let taskDiagnostics = [];
 let config;
 
 await check("Node.js >= 20", async () => {
@@ -49,12 +54,51 @@ if (config) {
     const store = new AccessStore(path.join(config.runtimeDir, "access.json"));
     return await store.hasAuthorizedUser() ? "已配对" : "待配对（运行 feishu-codex-bridge pairing）";
   }, { warningOnly: true });
+
+  if (includeTaskDiagnostics) {
+    await check("Task 过滤诊断", async () => {
+      const client = new CodexAppServerClient(config.codex);
+      const sessionStore = new DeveloperSessionStore(path.join(config.runtimeDir, "developer-sessions.json"));
+      const projectStore = new DeveloperProjectStore({ allowedRoots: config.bridge.allowedWorkspaceRoots });
+      const metadata = await sessionStore.listTaskMetadata();
+      const activeThreads = await client.listThreads({ limit: config.bridge.taskLimit, archived: false });
+      const archivedThreads = await client.listThreads({ limit: config.bridge.taskLimit, archived: true });
+      taskDiagnostics = [
+        ...activeThreads.map((thread) => ({
+          thread,
+          ...projectStore.inspectThread(thread, metadata)
+        })),
+        ...archivedThreads.map((thread) => ({
+          thread,
+          allowed: false,
+          cwd: thread.cwd || thread.workspacePath || "",
+          resolvedCwd: "",
+          reason: "archived"
+        }))
+      ];
+      const allowedCount = taskDiagnostics.filter((item) => item.allowed).length;
+      return `${allowedCount}/${activeThreads.length} 个未归档 Task 可从飞书访问`;
+    });
+  }
 }
 
 console.log("");
 for (const item of checks) {
   const icon = item.ok ? (item.warning ? "⚠️" : "✅") : "❌";
   console.log(`${icon} ${item.name}：${item.message}`);
+}
+
+if (includeTaskDiagnostics && taskDiagnostics.length) {
+  console.log("");
+  console.log("Task 过滤诊断（仅在本机显示）：");
+  for (const item of taskDiagnostics) {
+    console.log(`${item.allowed ? "✅" : "⛔"} ${taskTitle(item.thread)}`);
+    console.log(`   ${diagnosticReason(item.reason)}`);
+    if (item.cwd) console.log(`   cwd: ${item.cwd}`);
+    if (item.resolvedCwd && item.resolvedCwd !== item.cwd) {
+      console.log(`   repository: ${item.resolvedCwd}`);
+    }
+  }
 }
 
 const failed = checks.filter((item) => !item.ok);
@@ -73,4 +117,22 @@ async function check(name, action, { warningOnly = false } = {}) {
   } catch (error) {
     checks.push({ name, ok: warningOnly, warning: warningOnly, message: error.message });
   }
+}
+
+function taskTitle(thread = {}) {
+  return String(thread.name || thread.title || thread.preview || "未命名 Task")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 100);
+}
+
+function diagnosticReason(reason) {
+  const reasons = {
+    "allowed-root": "允许：工作目录在白名单内",
+    "allowed-worktree": "允许：Codex worktree 的原始仓库在白名单内",
+    "missing-cwd": "已排除：Codex 未返回工作目录",
+    "outside-allowed-roots": "已排除：工作目录和原始仓库均不在白名单内",
+    archived: "已排除：Task 已归档"
+  };
+  return reasons[reason] || `状态：${reason}`;
 }

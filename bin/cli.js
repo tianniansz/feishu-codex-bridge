@@ -49,7 +49,7 @@ switch (command) {
     if (exitCode === 0) exitCode = runPowerShell("start.ps1");
     break;
   case "doctor":
-    exitCode = runNodeScript("scripts/doctor.mjs");
+    exitCode = runNodeScript("scripts/doctor.mjs", commandArgs);
     break;
   case "pairing":
     exitCode = runNodeScript("scripts/pairing.mjs", commandArgs.includes("--reset") ? ["--reset"] : []);
@@ -177,7 +177,7 @@ function printHelp() {
 用法：feishu-codex-bridge <命令>
 
   setup                 配置环境、飞书机器人和工作目录
-  doctor                运行环境自检
+  doctor [--tasks]      运行环境自检，可诊断 Task 过滤原因
   start [--foreground]  启动后台服务或前台调试
   status                查看运行状态
   logs [行数]           查看最近日志，默认 100 行

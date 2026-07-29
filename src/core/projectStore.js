@@ -15,10 +15,20 @@ export class DeveloperProjectStore {
   }
 
   filterThreads(threads = [], metadata = {}) {
-    return threads.filter((thread) => {
-      const saved = metadata[thread.id] || {};
-      return this.isAllowed(saved.projectCwd || thread.cwd || thread.workspacePath || "");
-    });
+    return threads.filter((thread) => this.inspectThread(thread, metadata).allowed);
+  }
+
+  inspectThread(thread, metadata = {}) {
+    const saved = metadata[thread?.id] || {};
+    const cwd = normalizeCwd(saved.projectCwd || thread?.cwd || thread?.workspacePath || "");
+    if (!cwd) return { allowed: false, cwd: "", resolvedCwd: "", reason: "missing-cwd" };
+
+    const directlyAllowed = this.allowedRoots.some((root) => isWithin(root, cwd));
+    if (directlyAllowed) return { allowed: true, cwd, resolvedCwd: cwd, reason: "allowed-root" };
+
+    const resolvedCwd = this.resolveAllowedCwd(cwd);
+    if (resolvedCwd) return { allowed: true, cwd, resolvedCwd, reason: "allowed-worktree" };
+    return { allowed: false, cwd, resolvedCwd: "", reason: "outside-allowed-roots" };
   }
 
   isAllowed(cwd) {

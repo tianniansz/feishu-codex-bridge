@@ -83,6 +83,7 @@ feishu-codex-bridge logs                # 查看最近日志
 feishu-codex-bridge restart             # 重启
 feishu-codex-bridge stop                # 停止
 feishu-codex-bridge doctor              # 环境自检
+feishu-codex-bridge doctor --tasks      # 诊断 Task 被允许或过滤的原因
 feishu-codex-bridge pairing             # 增加配对用户
 feishu-codex-bridge pairing --reset     # 撤销全部用户并重新配对
 feishu-codex-bridge config edit         # 编辑配置
@@ -96,7 +97,7 @@ feishu-codex-bridge service install     # 登录 Windows 后自动启动
 - 未配对用户不能查看或操作 Task。
 - 默认只允许私聊。
 - 默认禁止从飞书新建 Task。
-- 只展示 `ALLOWED_WORKSPACE_ROOTS` 内的 Task。
+- 只展示 `ALLOWED_WORKSPACE_ROOTS` 内的 Task；Codex worktree 仅在其 Git 原始仓库位于允许目录内时放行。
 - 用户配置、运行状态和日志保存在 `%LOCALAPPDATA%\FeishuCodexBridge`，不会进入 Git 或随 npm 升级被覆盖。
 - App Server 仅通过本机 stdio 启动，不监听网络端口。
 - 审批码只对原飞书会话和单次请求有效，不提供远程永久放行。
@@ -123,6 +124,7 @@ Codex App Server 提供会话历史、`thread/resume` 和流式事件等深度�
 - [发布前体验验收](docs/EXPERIENCE_CHECKLIST.md)
 - [首次安装验收报告（2026-07-29）](docs/ACCEPTANCE_REPORT_2026-07-29.md)
 - [npm 包本地验收](docs/NPM_PACKAGE_ACCEPTANCE.md)
+- [正式发布清单](docs/RELEASE_CHECKLIST.md)
 - [贡献指南](CONTRIBUTING.md)
 
 ## 开发

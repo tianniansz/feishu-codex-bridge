@@ -15,11 +15,13 @@
 - [ ] 向导明确指出需要在飞书开放平台完成的步骤和权限。
 - [ ] `config.env` 写入用户数据目录，升级 npm 包后仍保留。
 - [ ] `feishu-codex-bridge doctor` 给出可执行的错误提示。
+- [ ] `feishu-codex-bridge doctor --tasks` 能解释允许目录、worktree、归档和白名单过滤原因。
 - [ ] 配对码过期、错误用户、群聊默认拒绝均符合预期。
 
 ## 核心路径验收
 
 - [ ] `tasks` 能看到 Codex Desktop 或 CLI 已有 Task，且看不到白名单外目录。
+- [ ] 原始仓库在白名单内的 Codex worktree Task 可见，其他仓库的 worktree 不可见。
 - [ ] `tasks <关键词>`、`project:<项目>`、`page:<页码>` 可组合使用。
 - [ ] `open <编号>` 打开的 Task 与最近一页展示一致。
 - [ ] 普通文本能续接 Task，最终回复能回到原飞书会话。
@@ -34,6 +36,8 @@
 - [ ] 重复事件不会重复触发 Codex。
 - [ ] 长回复能够分段，阶段通知不会刷屏。
 - [ ] `feishu-codex-bridge stop` 能让长期事件监听优雅退出，不遗留订阅进程。
+- [ ] 从上一版本升级时，停止服务后的短暂 npm `EBUSY` 能自动重试并成功安装。
+- [ ] `npm.cmd pack --dry-run --json` 清单不包含凭证、用户配置、运行数据或日志。
 
 ## 邀请体验者时收集
 

@@ -1,4 +1,4 @@
-function Normalize-BridgeProcessPath {
+﻿function Normalize-BridgeProcessPath {
   if (-not $IsWindows -and $PSVersionTable.PSEdition -eq "Core") { return }
 
   $CurrentPath = $env:Path
@@ -17,6 +17,34 @@ function Refresh-BridgeProcessPath {
   if ($Parts.Count -gt 0) {
     [Environment]::SetEnvironmentVariable("PATH", $null, "Process")
     [Environment]::SetEnvironmentVariable("Path", ($Parts -join ";"), "Process")
+  }
+}
+
+function Install-BridgeCliPackageWithRetry {
+  param(
+    [Parameter(Mandatory = $true)][string]$PackageFile,
+    [string]$NpmCommand = "npm.cmd",
+    [int]$MaxAttempts = 3,
+    [int]$RetryDelayMilliseconds = 1000
+  )
+
+  for ($Attempt = 1; $Attempt -le $MaxAttempts; $Attempt++) {
+    $PreviousErrorActionPreference = $ErrorActionPreference
+    try {
+      $ErrorActionPreference = "Continue"
+      & $NpmCommand install -g $PackageFile
+      $InstallExitCode = $LASTEXITCODE
+    } finally {
+      $ErrorActionPreference = $PreviousErrorActionPreference
+    }
+
+    if ($InstallExitCode -eq 0) { return }
+    if ($Attempt -ge $MaxAttempts) {
+      throw "CLI 全局安装连续失败 $MaxAttempts 次。请关闭占用 npm 全局目录的程序后重试。"
+    }
+
+    Write-Warning "CLI 安装失败，可能是 Windows 文件锁尚未释放；即将进行第 $($Attempt + 1)/$MaxAttempts 次尝试。"
+    Start-Sleep -Milliseconds ($RetryDelayMilliseconds * $Attempt)
   }
 }
 

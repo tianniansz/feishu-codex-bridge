@@ -104,10 +104,10 @@ function Install-And-RunBridgeCli {
       Write-Host "正在停止旧版本服务并释放安装目录..." -ForegroundColor Cyan
       & $ExistingCli.Source stop
       if ($LASTEXITCODE -ne 0) { throw "旧版本服务停止失败，无法安全升级。" }
+      Start-Sleep -Milliseconds 750
     }
 
-    & npm.cmd install -g $PackageFile
-    if ($LASTEXITCODE -ne 0) { throw "CLI 全局安装失败。" }
+    Install-BridgeCliPackageWithRetry -PackageFile $PackageFile
   } finally {
     Remove-Item -LiteralPath $PackageFile -Force -ErrorAction SilentlyContinue
   }

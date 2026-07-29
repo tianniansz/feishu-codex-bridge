@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import fs from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { PassThrough } from "node:stream";
@@ -140,10 +141,11 @@ test("Windows 安装向导按 package.json 计算 npm 包路径", { skip: proces
   const helperPath = path.resolve("scripts", "windows-helpers.ps1").replaceAll("'", "''");
   const projectRoot = path.resolve(".").replaceAll("'", "''");
   const destination = path.resolve(os.tmpdir()).replaceAll("'", "''");
+  const packageVersion = JSON.parse(readFileSync(path.resolve("package.json"), "utf8")).version;
   const script = [
     `. '${helperPath}'`,
     `$archive = Get-BridgePackageArchivePath -ProjectRoot '${projectRoot}' -Destination '${destination}'`,
-    `if ([IO.Path]::GetFileName($archive) -ne 'feishu-codex-bridge-0.2.0-beta.5.tgz') { Write-Error $archive; exit 41 }`
+    `if ([IO.Path]::GetFileName($archive) -ne 'feishu-codex-bridge-${packageVersion}.tgz') { Write-Error $archive; exit 41 }`
   ].join("; ");
   const result = spawnSync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script], {
     encoding: "utf8",
@@ -190,13 +192,43 @@ test("Windows 源码向导保留 CLI stdin 并关闭 lark-cli 二次确认", { s
 test("Windows 升级先停止旧服务并隐藏成功打包的原始输出", { skip: process.platform !== "win32" }, async () => {
   const setupScript = await fs.readFile(path.resolve("setup.ps1"), "utf8");
   const stopIndex = setupScript.indexOf("& $ExistingCli.Source stop");
-  const installIndex = setupScript.indexOf("& npm.cmd install -g $PackageFile", stopIndex);
+  const installIndex = setupScript.indexOf("Install-BridgeCliPackageWithRetry -PackageFile $PackageFile", stopIndex);
 
   assert.ok(stopIndex >= 0);
   assert.ok(installIndex > stopIndex);
   assert.match(setupScript, /\$PackOutput = & npm\.cmd pack --silent/);
   assert.match(setupScript, /CLI 安装包生成完成/);
   assert.doesNotMatch(setupScript, /npm\.cmd pack --silent[^\r\n]*\| Out-Host/);
+});
+
+test("Windows CLI installer retries a transient global install failure three times", { skip: process.platform !== "win32" }, async (t) => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "feishu-codex-npm-retry-"));
+  t.after(() => fs.rm(directory, { recursive: true, force: true }));
+  const counterPath = path.join(directory, "attempts.txt");
+  const fakeNpmPath = path.join(directory, "npm.cmd");
+  await fs.writeFile(counterPath, "0\n", "ascii");
+  await fs.writeFile(fakeNpmPath, [
+    "@echo off",
+    `set /p attempts=<\"${counterPath}\"`,
+    "set /a attempts+=1",
+    `>\"${counterPath}\" echo %attempts%`,
+    "if %attempts% LSS 3 exit /b 1",
+    "exit /b 0"
+  ].join("\r\n"), "ascii");
+
+  const helperPath = path.resolve("scripts", "windows-helpers.ps1").replaceAll("'", "''");
+  const quotedNpmPath = fakeNpmPath.replaceAll("'", "''");
+  const script = [
+    `. '${helperPath}'`,
+    `Install-BridgeCliPackageWithRetry -PackageFile 'test.tgz' -NpmCommand '${quotedNpmPath}' -RetryDelayMilliseconds 1`
+  ].join("; ");
+  const result = spawnSync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script], {
+    encoding: "utf8",
+    windowsHide: true
+  });
+
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.equal((await fs.readFile(counterPath, "ascii")).trim(), "3");
 });
 
 test("Windows 配置向导复用 active Profile、工作目录和配对状态", { skip: process.platform !== "win32" }, async () => {

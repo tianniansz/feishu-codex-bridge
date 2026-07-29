@@ -10,12 +10,12 @@
 npm.cmd pack
 ```
 
-命令会生成类似 `feishu-codex-bridge-0.2.0-beta.6.tgz` 的文件。
+命令会生成类似 `feishu-codex-bridge-0.2.0-rc.1.tgz` 的文件。
 
 ## 全局安装
 
 ```powershell
-npm.cmd install -g .\feishu-codex-bridge-0.2.0-beta.6.tgz
+npm.cmd install -g .\feishu-codex-bridge-0.2.0-rc.1.tgz
 feishu-codex-bridge version
 feishu-codex-bridge help
 feishu-codex-bridge setup
@@ -25,6 +25,7 @@ feishu-codex-bridge setup
 
 ```powershell
 feishu-codex-bridge doctor
+feishu-codex-bridge doctor --tasks
 feishu-codex-bridge start
 feishu-codex-bridge status
 feishu-codex-bridge logs
@@ -51,3 +52,11 @@ npm.cmd uninstall -g feishu-codex-bridge
 ```
 
 卸载 npm 包后，用户数据目录默认保留，避免误删配对和配置；如需清理，应由用户单独确认后手动删除。
+
+## 发布前包内容审计
+
+```powershell
+npm.cmd pack --dry-run --json
+```
+
+确认清单不包含 `.env`、`config.env`、`.runtime`、日志、访问令牌、配对数据、测试临时文件或本机绝对路径配置。

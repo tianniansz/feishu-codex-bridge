@@ -112,6 +112,9 @@ test("Codex worktree is allowed when its main repository is allowed", () => {
   assert.deepEqual(store.filterThreads(threads).map((thread) => thread.id), ["main", "worktree"]);
   assert.equal(store.resolveAllowedCwd(worktreeRoot), repositoryRoot);
   assert.equal(store.projectForThread(threads[1]).cwd, repositoryRoot);
+  assert.equal(store.inspectThread(threads[1]).reason, "allowed-worktree");
+  assert.equal(store.inspectThread(threads[2]).reason, "outside-allowed-roots");
+  assert.equal(store.inspectThread({ id: "missing" }).reason, "missing-cwd");
 });
 
 test("Codex worktree is resolved through the real Git common directory", async (t) => {

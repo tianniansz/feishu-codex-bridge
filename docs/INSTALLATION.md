@@ -76,6 +76,14 @@ Bridge 只使用应用机器人身份，不需要运行 `lark-cli auth login`。
 feishu-codex-bridge doctor
 ```
 
+如果桌面端看到的 Task 数量与飞书不一致，运行本机诊断：
+
+```powershell
+feishu-codex-bridge doctor --tasks
+```
+
+该命令会在本机显示允许目录、Codex worktree、归档及被白名单排除的原因，不会把诊断内容发送到飞书。
+
 预期结果：
 
 ```text
@@ -131,5 +139,6 @@ feishu-codex-bridge service install
 4. 发送普通文本后能收到 Codex 最终回复。
 5. 执行期间发送 `status` 能看到当前阶段。
 6. 本机 Codex 要求批准时，飞书能用 `approve <审批码>` 或 `reject <审批码>` 完成单次处理。
+7. 从旧版本重新运行 `setup.ps1` 时，全局 CLI 能停止旧服务并完成升级；Windows 文件锁会自动退避重试，最多三次。
 
 若失败，请查看[故障排查](TROUBLESHOOTING.md)。准备邀请他人体验前，再完成[发布前体验验收](EXPERIENCE_CHECKLIST.md)。
