@@ -65,8 +65,8 @@ open 1
 | `tasks 登录` | 按标题、摘要或项目搜索 Task |
 | `tasks project:demo page:2` | 按项目过滤并翻页 |
 | `open 2` | 进入指定 Task |
-| `open` | 刷新当前 Task 状态 |
-| `status` | 查看当前执行阶段和耗时 |
+| `open` | 刷新当前 Task 的完整状态和进展 |
+| `status` | 主动刷新当前 Task 的状态；其他入口发起的任务不会自动推送 |
 | `approve A1B2C3` | 单次批准当前会话中的 Codex 请求 |
 | `reject A1B2C3` | 拒绝当前会话中的 Codex 请求 |
 | 普通文本 | 发送给当前 Codex Task |

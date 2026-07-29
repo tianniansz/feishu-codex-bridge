@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `open` 和 `status` 支持刷新其他 Codex 入口发起的长任务，根据最新持久化 turn 显示执行状态与进展。
+- `notLoaded` 不再误报为 `Waiting User`；无法确认时显示 `Unknown`，外部任务执行中禁止追加并发消息。
+- `doctor --tasks` 增加原始 thread/turn 状态和 Bridge 判定输出。
 - 修复源码停止脚本的状态文本与退出码混合后被误判为升级失败的问题。
 - 源码升级时使用当前源码副本停止现有服务，不再加载即将被 npm 替换的旧全局 CLI 目录。
 - 升级全局 CLI 时等待 Windows 文件句柄释放，安装失败后最多退避重试三次。

@@ -75,6 +75,22 @@ feishu-codex-bridge doctor --tasks
 - Windows 路径必须真实存在
 - 修改配置后需要运行 `feishu-codex-bridge restart`
 
+## Desktop 显示执行中，但飞书状态不同
+
+进入对应 Task 后发送：
+
+```text
+status
+```
+
+`tasks` 列表只包含线程摘要；`open` 和 `status` 会读取最新完整快照。其他 Codex 入口发起的任务不会自动向飞书推送进展，需要主动刷新。`Unknown` 表示当前 App Server 无法确认实时状态，不等同于等待用户输入。
+
+本机可查看原始状态：
+
+```powershell
+feishu-codex-bridge doctor --tasks
+```
+
 ## 升级时出现 npm `EBUSY`
 
 安装向导会在停止旧服务后等待文件句柄释放，并最多自动尝试三次。三次仍失败时，先检查是否仍有 Bridge 进程：

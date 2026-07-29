@@ -5,6 +5,7 @@ import { loadConfig } from "../src/config.js";
 import { AccessStore } from "../src/core/accessStore.js";
 import { DeveloperProjectStore } from "../src/core/projectStore.js";
 import { DeveloperSessionStore } from "../src/core/sessionStore.js";
+import { getThreadRuntimeState } from "../src/core/taskFormatter.js";
 import { CodexAppServerClient } from "../src/codex/appServerClient.js";
 import { runCommand } from "../src/lark/client.js";
 
@@ -63,11 +64,24 @@ if (config) {
       const metadata = await sessionStore.listTaskMetadata();
       const activeThreads = await client.listThreads({ limit: config.bridge.taskLimit, archived: false });
       const archivedThreads = await client.listThreads({ limit: config.bridge.taskLimit, archived: true });
+      const activeDiagnostics = [];
+      for (const thread of activeThreads) {
+        const inspection = projectStore.inspectThread(thread, metadata);
+        let snapshot = thread;
+        if (inspection.allowed) {
+          snapshot = await client.readThread(thread.id, { includeTurns: true }) || thread;
+        }
+        const lastTurn = Array.isArray(snapshot.turns) ? snapshot.turns.at(-1) : null;
+        activeDiagnostics.push({
+          thread: snapshot,
+          ...inspection,
+          runtime: getThreadRuntimeState(snapshot),
+          threadStatus: snapshot.status || thread.status || null,
+          lastTurnStatus: lastTurn?.status || null
+        });
+      }
       taskDiagnostics = [
-        ...activeThreads.map((thread) => ({
-          thread,
-          ...projectStore.inspectThread(thread, metadata)
-        })),
+        ...activeDiagnostics,
         ...archivedThreads.map((thread) => ({
           thread,
           allowed: false,
@@ -94,6 +108,9 @@ if (includeTaskDiagnostics && taskDiagnostics.length) {
   for (const item of taskDiagnostics) {
     console.log(`${item.allowed ? "✅" : "⛔"} ${taskTitle(item.thread)}`);
     console.log(`   ${diagnosticReason(item.reason)}`);
+    if (item.runtime) console.log(`   bridgeStatus: ${item.runtime.label}`);
+    if (item.threadStatus) console.log(`   threadStatus: ${JSON.stringify(item.threadStatus)}`);
+    if (item.lastTurnStatus) console.log(`   lastTurnStatus: ${JSON.stringify(item.lastTurnStatus)}`);
     if (item.cwd) console.log(`   cwd: ${item.cwd}`);
     if (item.resolvedCwd && item.resolvedCwd !== item.cwd) {
       console.log(`   repository: ${item.resolvedCwd}`);

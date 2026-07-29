@@ -47,6 +47,23 @@ tasks project:my-app          # 按项目名过滤
 tasks 登录 project:my-app page:2
 ```
 
+## 查看其他入口发起的长任务
+
+Codex Desktop 发起的任务不会自动向飞书推送进展。进入 Task 后主动发送：
+
+```text
+status
+```
+
+Bridge 会重新读取远程主机上的 Task 快照并显示刷新时间、最新状态和最近持久化进展。发送 `open` 可刷新完整 Task 信息。
+
+- `Running（外部发起）`：最新 thread 或 turn 仍在执行。
+- `Waiting User`：已确认当前等待用户输入。
+- `Completed`：最新 turn 已完成，可以从飞书继续。
+- `Unknown`：当前 App Server 无法确认实时状态，请稍后再次发送 `status`。
+
+检测到外部任务仍在执行时，Bridge 会拒绝追加新消息，避免产生并发 turn。
+
 `open <编号>` 始终对应机器人最近一次展示的那一页，不是全部 Task 的全局编号。
 
 ## 执行状态与审批

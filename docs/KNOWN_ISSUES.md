@@ -1,5 +1,16 @@
 # 已知问题
 
+## P0-20260729-03：外部运行中的 Task 被误显示为 `Waiting User`
+
+- 状态：已修复
+- 发现版本：`0.2.0-rc.3`
+- 修复版本：`0.2.0-rc.4`
+- 环境：Codex Desktop 发起远程长任务，飞书端随后查看同一 Task
+
+### 原因与修复
+
+`thread.status = notLoaded` 只表示当前 App Server 实例未加载该线程，不能据此判断任务正在等待用户。RC.4 会在 `open` 和 `status` 时读取完整线程快照，并结合最新 turn 状态判断：`inProgress` 显示为 `Running（外部发起）`，没有充分证据时显示 `Unknown`。外部任务执行中禁止从飞书追加普通消息，并明确提示用户主动发送 `status` 或 `open` 刷新；不会承诺自动推送 Desktop 发起任务的进展。
+
 ## P0-20260729-02：停止旧服务后 npm 全局升级偶发 `EBUSY`
 
 - 状态：已修复

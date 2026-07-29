@@ -9,6 +9,7 @@ import { DeveloperProjectStore } from "../src/core/projectStore.js";
 import { DeveloperRouter } from "../src/core/router.js";
 import { DeveloperJobManager } from "../src/core/jobManager.js";
 import { browseTasks, parseTaskQuery } from "../src/core/taskBrowser.js";
+import { formatThreadStatus, getThreadRuntimeState } from "../src/core/taskFormatter.js";
 import { EventStore } from "../src/core/eventStore.js";
 import { mapLarkCliEvent } from "../src/lark/eventAdapter.js";
 
@@ -182,6 +183,77 @@ test("Task 列表支持关键词、项目过滤和分页", () => {
   assert.equal(result.total, 2);
   assert.equal(result.page, 2);
   assert.equal(result.threads[0].id, "3");
+});
+
+test("外部发起的持久化 inProgress Task 显示执行中并提示主动刷新", () => {
+  const thread = {
+    id: "external-running",
+    status: { type: "notLoaded" },
+    turns: [{
+      id: "turn-1",
+      status: "inProgress",
+      items: [{ type: "commandExecution", status: "inProgress" }]
+    }]
+  };
+
+  assert.deepEqual(getThreadRuntimeState(thread), {
+    kind: "running",
+    label: "Running（外部发起）",
+    source: "persisted-turn"
+  });
+  const message = formatThreadStatus(thread, { refreshedAt: new Date("2026-07-29T08:00:00Z") });
+  assert.match(message, /Task 状态已刷新/);
+  assert.match(message, /Running（外部发起）/);
+  assert.match(message, /正在执行命令/);
+  assert.match(message, /发送 status 刷新最新状态/);
+});
+
+test("notLoaded 且没有运行证据的 Task 显示 Unknown", () => {
+  const runtime = getThreadRuntimeState({ status: { type: "notLoaded" }, turns: [] });
+  assert.equal(runtime.kind, "unknown");
+  assert.equal(runtime.label, "Unknown");
+});
+
+test("Router 可刷新外部任务状态并阻止执行中追加消息", async () => {
+  const sent = [];
+  const runningThread = {
+    id: "external-running",
+    name: "S01",
+    cwd: "D:\\Projects\\demo",
+    status: { type: "notLoaded" },
+    turns: [{
+      id: "turn-1",
+      status: "inProgress",
+      items: [{ type: "commandExecution", status: "inProgress" }]
+    }]
+  };
+  const codexClient = {
+    async listThreads() { return [runningThread]; },
+    async readThread() { return runningThread; },
+    async sendMessage(threadId, text) { sent.push({ threadId, text }); }
+  };
+  const sessionStore = memorySessionStore();
+  const router = new DeveloperRouter({
+    codexClient,
+    sessionStore,
+    projectStore: new DeveloperProjectStore({ allowedRoots: ["D:\\Projects"] })
+  });
+  const event = { chatId: "oc_1", senderId: "ou_1" };
+
+  await router.handle({ ...event, text: "tasks" });
+  const opened = await router.handle({ ...event, text: "open 1" });
+  assert.match(opened.reply, /Running（外部发起）/);
+  assert.match(opened.reply, /普通消息不会追加/);
+  assert.match(opened.reply, /飞书不会自动推送执行进展/);
+
+  const status = await router.handle({ ...event, text: "status" });
+  assert.match(status.reply, /Task 状态已刷新/);
+  assert.match(status.reply, /发送 status 刷新最新状态/);
+
+  const blocked = await router.handle({ ...event, text: "继续处理" });
+  assert.equal(blocked.ok, false);
+  assert.match(blocked.reply, /仍在执行中/);
+  assert.deepEqual(sent, []);
 });
 
 test("飞书审批码只允许原会话处理", async () => {

@@ -7,10 +7,11 @@ import {
   formatOpenReply,
   formatTasks,
   formatJobStatus,
+  formatThreadStatus,
   formatUndeliveredResult,
+  getThreadRuntimeState,
   hasCompletedUndeliveredResult,
-  hasPendingUndeliveredResult,
-  isRunningStatus
+  hasPendingUndeliveredResult
 } from "./taskFormatter.js";
 
 export class DeveloperRouter {
@@ -190,7 +191,11 @@ export class DeveloperRouter {
 
     return {
       ok: true,
-      reply: formatOpenReply(thread || selected, { index, project }),
+      reply: formatOpenReply(thread || selected, {
+        index,
+        project,
+        bridgeRunning: this.jobManager?.isRunning?.(selected.id) || false
+      }),
       data: { thread: thread || selected }
     };
   }
@@ -209,14 +214,7 @@ export class DeveloperRouter {
       return { ok: false, reply: "当前 Task 已不在允许目录中，会话已退出。" };
     }
 
-    if (this.jobManager?.isRunning?.(session.threadId)) {
-      return { ok: true, reply: formatLastTaskStillRunning() };
-    }
-
     const thread = await this.codexClient.readThread(session.threadId, { includeTurns: true });
-    if (isRunningStatus(thread?.status)) {
-      return { ok: true, reply: formatLastTaskStillRunning() };
-    }
 
     if (hasPendingUndeliveredResult(thread, session.lastDelivery)) {
       return { ok: true, reply: formatLastTaskStillRunning() };
@@ -239,7 +237,12 @@ export class DeveloperRouter {
     }
     return {
       ok: true,
-      reply: formatOpenReply(thread || session, { index: session.index, project, prefix }),
+      reply: formatOpenReply(thread || session, {
+        index: session.index,
+        project,
+        prefix,
+        bridgeRunning: this.jobManager?.isRunning?.(session.threadId) || false
+      }),
       data: { thread: thread || session }
     };
   }
@@ -259,7 +262,15 @@ export class DeveloperRouter {
   async handleStatus(key) {
     const session = await this.sessionStore.get(key);
     if (!session?.threadId) return { ok: false, reply: "当前未进入任何 Task。请先发送 tasks，再发送 open <编号>。" };
-    return { ok: true, reply: formatJobStatus(this.jobManager?.getJob?.(session.threadId) || null) };
+    const job = this.jobManager?.getJob?.(session.threadId) || null;
+    if (job) return { ok: true, reply: formatJobStatus(job) };
+
+    const thread = await this.codexClient.readThread(session.threadId, { includeTurns: true });
+    return {
+      ok: true,
+      reply: formatThreadStatus(thread || session),
+      data: { thread: thread || null }
+    };
   }
 
   async handleChat(key, text, event) {
@@ -283,11 +294,11 @@ export class DeveloperRouter {
       };
     }
 
-    const thread = await this.codexClient.readThread(session.threadId, { includeTurns: false });
-    if (isRunningStatus(thread?.status)) {
+    const thread = await this.codexClient.readThread(session.threadId, { includeTurns: true });
+    if (getThreadRuntimeState(thread || {}).kind === "running") {
       return {
         ok: false,
-        reply: "当前任务正在执行中。\n\n请等待本轮执行结束后继续发送消息。"
+        reply: "当前任务仍在执行中，暂不追加新消息。\n\n发送 status 刷新最新状态；发送 open 刷新完整进展。"
       };
     }
 
