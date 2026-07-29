@@ -2,9 +2,9 @@
 
 ## P1-20260729-01：PowerShell 5.1 显示 `npm pack` 中文输出乱码
 
-- 状态：待修复
+- 状态：已修复
 - 发现版本：`0.2.0-beta.2`
-- 计划版本：`0.2.0-beta.4`
+- 修复版本：`0.2.0-beta.4`
 - 环境：Windows PowerShell 5.1、Node.js 24、npm 11
 
 ### 现象

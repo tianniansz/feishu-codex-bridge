@@ -85,10 +85,27 @@ function Install-And-RunBridgeCli {
   $PackageFile = Get-BridgePackageArchivePath -ProjectRoot $ProjectRoot -Destination $TempDir
   Remove-Item -LiteralPath $PackageFile -Force -ErrorAction SilentlyContinue
   try {
-    & npm.cmd pack --silent --pack-destination $TempDir | Out-Host
-    if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $PackageFile -PathType Leaf)) {
+    $PreviousErrorActionPreference = $ErrorActionPreference
+    try {
+      $ErrorActionPreference = "Continue"
+      $PackOutput = & npm.cmd pack --silent --pack-destination $TempDir 2>&1
+      $PackExitCode = $LASTEXITCODE
+    } finally {
+      $ErrorActionPreference = $PreviousErrorActionPreference
+    }
+    if ($PackExitCode -ne 0 -or -not (Test-Path -LiteralPath $PackageFile -PathType Leaf)) {
+      $PackOutput | Out-Host
       throw "CLI 安装包生成失败：未找到 $PackageFile"
     }
+    Write-Host "CLI 安装包生成完成：$([IO.Path]::GetFileName($PackageFile))" -ForegroundColor Green
+
+    $ExistingCli = Get-Command "feishu-codex-bridge.cmd" -ErrorAction SilentlyContinue
+    if ($ExistingCli) {
+      Write-Host "正在停止旧版本服务并释放安装目录..." -ForegroundColor Cyan
+      & $ExistingCli.Source stop
+      if ($LASTEXITCODE -ne 0) { throw "旧版本服务停止失败，无法安全升级。" }
+    }
+
     & npm.cmd install -g $PackageFile
     if ($LASTEXITCODE -ne 0) { throw "CLI 全局安装失败。" }
   } finally {
@@ -142,10 +159,24 @@ Require-Command "npm" "Node.js 安装不完整，请重新安装 Node.js。"
 if (-not $BridgePaths.CliMode) { Install-And-RunBridgeCli }
 Offer-Install "codex" "未找到 Codex CLI，是否通过 npm 安装？输入 y 或 n" { npm install -g @openai/codex }
 Ensure-CodexLogin
-Offer-Install "lark-cli" "未找到 lark-cli，是否安装飞书官方 CLI？输入 y 或 n" { npx.cmd --yes @larksuite/cli@latest install }
+Offer-Install "lark-cli.cmd" "未找到 lark-cli，是否安装飞书官方 CLI？输入 y 或 n" {
+  npm.cmd install -g @larksuite/cli@latest
+  Refresh-BridgeProcessPath
+}
 
-$Profile = Read-WithDefault "请输入 lark-cli Profile 名称" "codex-bridge"
-if (-not (Test-LarkProfile -Profile $Profile)) {
+$ExistingProfile = Get-BridgeConfigValue -ConfigFile $BridgePaths.ConfigFile -Name "LARK_CLI_PROFILE"
+$ActiveProfile = Get-ActiveLarkProfile
+$Profile = if (-not [string]::IsNullOrWhiteSpace($ExistingProfile) -and (Test-LarkProfile -Profile $ExistingProfile -LarkCli "lark-cli.cmd")) {
+  Write-Host "已复用现有飞书 Profile：$ExistingProfile" -ForegroundColor Green
+  $ExistingProfile
+} elseif (-not [string]::IsNullOrWhiteSpace($ActiveProfile) -and (Test-LarkProfile -Profile $ActiveProfile -LarkCli "lark-cli.cmd")) {
+  Write-Host "已自动选择 active 飞书 Profile：$ActiveProfile" -ForegroundColor Green
+  $ActiveProfile
+} else {
+  Read-WithDefault "请输入 lark-cli Profile 名称" "codex-bridge"
+}
+
+if (-not (Test-LarkProfile -Profile $Profile -LarkCli "lark-cli.cmd")) {
   Write-Host "Profile '$Profile' 不存在或当前不可用。" -ForegroundColor Yellow
   $Create = Read-WithDefault "是否现在创建新的飞书应用 Profile？输入 y 或 n" "y"
   if ($Create -notmatch "^(y|yes)$") {
@@ -153,25 +184,37 @@ if (-not (Test-LarkProfile -Profile $Profile)) {
   }
 
   $Profile = Read-WithDefault "请输入新 Profile 名称" "${Profile}-new"
-  & lark-cli config init --new --name $Profile --lang zh_cn
+  Write-Host "本项目仅使用机器人身份，不需要用户 OAuth。请勿选择邮件、云盘等用户权限。" -ForegroundColor Cyan
+  & lark-cli.cmd config init --new --name $Profile --lang zh_cn
   if ($LASTEXITCODE -ne 0) { throw "飞书应用初始化失败。" }
-  if (-not (Test-LarkProfile -Profile $Profile)) {
+  if (-not (Test-LarkProfile -Profile $Profile -LarkCli "lark-cli.cmd")) {
     throw "Profile '$Profile' 仍不可用。请确认飞书应用已开启机器人能力、权限已配置并发布，然后重新运行 setup.ps1。"
   }
 }
 
-$DefaultWorkspace = if (-not [string]::IsNullOrWhiteSpace($env:FEISHU_CODEX_SETUP_CWD)) {
+$ExistingWorkspace = Get-BridgeConfigValue -ConfigFile $BridgePaths.ConfigFile -Name "ALLOWED_WORKSPACE_ROOTS"
+$ExistingWorkspaceRoots = @($ExistingWorkspace -split "[;,]" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+$CanReuseWorkspace = $ExistingWorkspaceRoots.Count -gt 0 -and @($ExistingWorkspaceRoots | Where-Object { -not (Test-Path -LiteralPath $_ -PathType Container) }).Count -eq 0
+
+$DefaultWorkspace = if ($CanReuseWorkspace) {
+  $ExistingWorkspace
+} elseif (-not [string]::IsNullOrWhiteSpace($env:FEISHU_CODEX_SETUP_CWD)) {
   $env:FEISHU_CODEX_SETUP_CWD
 } elseif ($BridgePaths.CliMode) {
   [Environment]::GetFolderPath("MyDocuments")
 } else {
   Split-Path -Parent $ProjectRoot
 }
-$Workspace = Read-WithDefault "请输入允许远程操作的 Codex 项目根目录" $DefaultWorkspace
-if (-not (Test-Path -LiteralPath $Workspace -PathType Container)) {
-  throw "目录不存在：$Workspace"
+$Workspace = if ($CanReuseWorkspace) {
+  Write-Host "已复用现有 Codex 工作目录：$ExistingWorkspace" -ForegroundColor Green
+  $ExistingWorkspace
+} else {
+  $RequestedWorkspace = Read-WithDefault "请输入允许远程操作的 Codex 项目根目录" $DefaultWorkspace
+  if (-not (Test-Path -LiteralPath $RequestedWorkspace -PathType Container)) {
+    throw "目录不存在：$RequestedWorkspace"
+  }
+  (Resolve-Path -LiteralPath $RequestedWorkspace).Path
 }
-$Workspace = (Resolve-Path -LiteralPath $Workspace).Path
 
 $EnvContent = @"
 LARK_CLI_PROFILE=$Profile
@@ -202,7 +245,13 @@ Write-Host ""
 Restart-BridgeAfterSetup
 
 Write-Host ""
-& node scripts/pairing.mjs
-if ($LASTEXITCODE -ne 0) { throw "服务已启动，但配对码生成失败。请运行 feishu-codex-bridge pairing 重试。" }
-Write-Host ""
-Write-Host "配置完成，服务已启动并就绪。现在可以向机器人发送上方配对命令。" -ForegroundColor Green
+if (Test-BridgeHasPairedUser -RuntimeDir $BridgePaths.RuntimeDir) {
+  Write-Host "已保留现有飞书配对，可以直接发送 tasks。" -ForegroundColor Green
+  Write-Host ""
+  Write-Host "配置完成，服务已启动并就绪。" -ForegroundColor Green
+} else {
+  & node scripts/pairing.mjs
+  if ($LASTEXITCODE -ne 0) { throw "服务已启动，但配对码生成失败。请运行 feishu-codex-bridge pairing 重试。" }
+  Write-Host ""
+  Write-Host "配置完成，服务已启动并就绪。现在可以向机器人发送上方配对命令。" -ForegroundColor Green
+}

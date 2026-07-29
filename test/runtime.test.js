@@ -97,6 +97,37 @@ test("Windows 助手可识别 Profile 状态并规范化启动环境", { skip: p
   assert.equal(result.status, 0, result.stderr || result.stdout);
 });
 
+test("Windows 助手可读取 active Profile、现有配置和配对状态", { skip: process.platform !== "win32" }, async (t) => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "feishu-codex-profile-"));
+  t.after(() => fs.rm(directory, { recursive: true, force: true }));
+  const fakeLark = path.join(directory, "fake-lark.cmd");
+  const configFile = path.join(directory, "config.env");
+  const runtimeDir = path.join(directory, "runtime");
+  await fs.mkdir(runtimeDir, { recursive: true });
+  await fs.writeFile(fakeLark, '@echo [{"name":"active-profile","active":true}]\r\n', "utf8");
+  await fs.writeFile(configFile, "LARK_CLI_PROFILE=existing-profile\r\n", "utf8");
+  await fs.writeFile(path.join(runtimeDir, "access.json"), JSON.stringify({
+    authorizedUsers: [{ senderId: "ou_test" }],
+    pairing: null
+  }), "utf8");
+
+  const helperPath = path.resolve("scripts", "windows-helpers.ps1").replaceAll("'", "''");
+  const script = [
+    `. '${helperPath}'`,
+    `$profile = Get-ActiveLarkProfile -LarkCli '${fakeLark.replaceAll("'", "''")}'`,
+    `if ($profile -ne 'active-profile') { Write-Error $profile; exit 51 }`,
+    `$configured = Get-BridgeConfigValue -ConfigFile '${configFile.replaceAll("'", "''")}' -Name 'LARK_CLI_PROFILE'`,
+    `if ($configured -ne 'existing-profile') { Write-Error $configured; exit 52 }`,
+    `if (-not (Test-BridgeHasPairedUser -RuntimeDir '${runtimeDir.replaceAll("'", "''")}')) { exit 53 }`
+  ].join("; ");
+  const result = spawnSync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script], {
+    encoding: "utf8",
+    windowsHide: true
+  });
+
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+});
+
 test("Windows 安装向导按 package.json 计算 npm 包路径", { skip: process.platform !== "win32" }, () => {
   const helperPath = path.resolve("scripts", "windows-helpers.ps1").replaceAll("'", "''");
   const projectRoot = path.resolve(".").replaceAll("'", "''");
@@ -104,7 +135,7 @@ test("Windows 安装向导按 package.json 计算 npm 包路径", { skip: proces
   const script = [
     `. '${helperPath}'`,
     `$archive = Get-BridgePackageArchivePath -ProjectRoot '${projectRoot}' -Destination '${destination}'`,
-    `if ([IO.Path]::GetFileName($archive) -ne 'feishu-codex-bridge-0.2.0-beta.3.tgz') { Write-Error $archive; exit 41 }`
+    `if ([IO.Path]::GetFileName($archive) -ne 'feishu-codex-bridge-0.2.0-beta.4.tgz') { Write-Error $archive; exit 41 }`
   ].join("; ");
   const result = spawnSync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script], {
     encoding: "utf8",
@@ -143,8 +174,31 @@ test("Windows 源码向导保留 CLI stdin 并关闭 lark-cli 二次确认", { s
   const setupScript = await fs.readFile(path.resolve("setup.ps1"), "utf8");
   assert.match(setupScript, /& \$CliCommand setup\s*\r?\n/);
   assert.doesNotMatch(setupScript, /& \$CliCommand setup\s*\|/);
-  assert.match(setupScript, /npx\.cmd --yes @larksuite\/cli@latest install/);
+  assert.match(setupScript, /npm\.cmd install -g @larksuite\/cli@latest/);
+  assert.doesNotMatch(setupScript, /npx\.cmd --yes @larksuite\/cli@latest install/);
   assert.doesNotMatch(setupScript, /Install-And-RunBridgeCli\)\)/);
+});
+
+test("Windows 升级先停止旧服务并隐藏成功打包的原始输出", { skip: process.platform !== "win32" }, async () => {
+  const setupScript = await fs.readFile(path.resolve("setup.ps1"), "utf8");
+  const stopIndex = setupScript.indexOf("& $ExistingCli.Source stop");
+  const installIndex = setupScript.indexOf("& npm.cmd install -g $PackageFile", stopIndex);
+
+  assert.ok(stopIndex >= 0);
+  assert.ok(installIndex > stopIndex);
+  assert.match(setupScript, /\$PackOutput = & npm\.cmd pack --silent/);
+  assert.match(setupScript, /CLI 安装包生成完成/);
+  assert.doesNotMatch(setupScript, /npm\.cmd pack --silent[^\r\n]*\| Out-Host/);
+});
+
+test("Windows 配置向导复用 active Profile、工作目录和配对状态", { skip: process.platform !== "win32" }, async () => {
+  const setupScript = await fs.readFile(path.resolve("setup.ps1"), "utf8");
+
+  assert.match(setupScript, /Get-ActiveLarkProfile/);
+  assert.match(setupScript, /已自动选择 active 飞书 Profile/);
+  assert.match(setupScript, /已复用现有 Codex 工作目录/);
+  assert.match(setupScript, /Test-BridgeHasPairedUser/);
+  assert.match(setupScript, /可以直接发送 tasks/);
 });
 
 test("Windows 配置向导等待服务 ready 后才生成配对码", { skip: process.platform !== "win32" }, async () => {

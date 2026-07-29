@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- 升级全局 CLI 前自动停止旧服务，避免 Windows 文件锁导致 npm `EBUSY`。
+- 安装向导复用 active Profile、工作目录与配对状态，并改用纯 npm 安装 lark-cli，避免不必要的用户 OAuth 引导。
+- 修复 PowerShell 5.1 显示 npm 打包中文输出乱码的问题。
 - 修复 Windows 下多行 Task 回复经过 `lark-cli.cmd` 时可能丢失 `--as bot`、错误回退为用户身份的问题。
 - 增加统一的 `feishu-codex-bridge` CLI 和 npm 本地打包安装流程。
 - 全局安装模式将配置、状态和日志迁移到 `%LOCALAPPDATA%\FeishuCodexBridge`。

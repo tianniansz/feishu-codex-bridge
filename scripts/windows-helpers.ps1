@@ -90,3 +90,52 @@ function Test-LarkProfile {
   if ($LASTEXITCODE -ne 0) { return $false }
   return Test-LarkWhoamiOutput $Output
 }
+
+function Get-ActiveLarkProfile {
+  param([string]$LarkCli = "lark-cli.cmd")
+
+  $Output = & $LarkCli config show 2>$null | Out-String
+  if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($Output)) { return $null }
+  try {
+    $Config = $Output | ConvertFrom-Json
+  } catch {
+    return $null
+  }
+
+  if ($Config -is [array]) {
+    $Active = @($Config | Where-Object { $_.active -eq $true })
+    if ($Active.Count -eq 1 -and -not [string]::IsNullOrWhiteSpace($Active[0].name)) {
+      return [string]$Active[0].name
+    }
+    return $null
+  }
+
+  if (-not [string]::IsNullOrWhiteSpace($Config.profile)) { return [string]$Config.profile }
+  if (-not [string]::IsNullOrWhiteSpace($Config.name) -and $Config.active -eq $true) { return [string]$Config.name }
+  return $null
+}
+
+function Get-BridgeConfigValue {
+  param([string]$ConfigFile, [string]$Name)
+
+  if (-not (Test-Path -LiteralPath $ConfigFile -PathType Leaf)) { return $null }
+  $Prefix = "$Name="
+  $Line = Get-Content -LiteralPath $ConfigFile -Encoding UTF8 |
+    Where-Object { $_.StartsWith($Prefix, [StringComparison]::OrdinalIgnoreCase) } |
+    Select-Object -First 1
+  if ($null -eq $Line) { return $null }
+  return $Line.Substring($Prefix.Length).Trim()
+}
+
+function Test-BridgeHasPairedUser {
+  param([string]$RuntimeDir)
+
+  $AccessFile = Join-Path $RuntimeDir "access.json"
+  if (-not (Test-Path -LiteralPath $AccessFile -PathType Leaf)) { return $false }
+  try {
+    $Access = Get-Content -LiteralPath $AccessFile -Raw -Encoding UTF8 | ConvertFrom-Json
+    return @($Access.authorizedUsers).Count -gt 0
+  } catch {
+    return $false
+  }
+}

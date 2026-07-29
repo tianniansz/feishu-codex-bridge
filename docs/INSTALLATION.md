@@ -47,6 +47,16 @@ Set-ExecutionPolicy -Scope Process Bypass
 lark-cli config init --new --name codex-bridge --lang zh_cn
 ```
 
+Bridge 只使用应用机器人身份，不需要运行 `lark-cli auth login`。请在飞书开发者后台为应用配置：
+
+- 开启机器人能力。
+- 应用身份权限：`im:message.p2p_msg:readonly`。
+- 应用身份权限：`im:message:send_as_bot`。
+- 事件订阅：`im.message.receive_v1`。
+- 发布应用版本，并确保当前测试用户位于应用可用范围。
+
+不要为 Bridge 选择用户身份权限、邮件业务域、云盘业务域或 `im:message.send_as_user`。如果此前已经完成了用户 OAuth，可在验收结束后运行 `lark-cli auth logout --json` 清除本机用户登录，并在飞书授权管理页面撤销服务端用户授权；这不会删除机器人应用 Profile。
+
 向导会立即用 bot 身份验证 Profile 的 `available` 状态。不可用时不会提前写入 `.env`，避免到最后一步才失败。
 
 按照终端给出的飞书页面完成以下操作：

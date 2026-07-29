@@ -27,9 +27,11 @@ codex --version
 ## 找不到 lark-cli
 
 ```powershell
-npx @larksuite/cli@latest install
+npm install -g @larksuite/cli@latest
 lark-cli --version
 ```
+
+这里只安装 CLI，不运行 `lark-cli auth login`。Bridge 使用机器人身份，不需要用户 OAuth；不要为此项目授予邮件、云盘或 `im:message.send_as_user` 权限。
 
 安装方式变化时，以[飞书官方 CLI 仓库](https://github.com/larksuite/cli)为准。
 
