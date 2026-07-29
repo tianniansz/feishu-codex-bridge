@@ -61,6 +61,12 @@ function Get-BridgePackageArchivePath {
   return Join-Path $Destination "$ArchiveName-$($Metadata.version).tgz"
 }
 
+function Test-CodexLoginStatus {
+  if ([string]::IsNullOrWhiteSpace($env:ComSpec)) { return $false }
+  & $env:ComSpec /d /c "codex login status 1>nul 2>nul"
+  return $LASTEXITCODE -eq 0
+}
+
 function Test-LarkWhoamiOutput {
   param([string]$Json)
 

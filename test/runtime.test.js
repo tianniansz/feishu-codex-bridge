@@ -90,6 +90,31 @@ test("Windows 安装向导按 package.json 计算 npm 包路径", { skip: proces
   assert.equal(result.status, 0, result.stderr || result.stdout);
 });
 
+test("Windows 登录检查忽略 Codex 写入 stderr 的成功信息", { skip: process.platform !== "win32" }, async (t) => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "feishu-codex-login-"));
+  t.after(() => fs.rm(directory, { recursive: true, force: true }));
+  const fakeCodex = path.join(directory, "codex.cmd");
+  await fs.writeFile(fakeCodex, "@echo Logged in using a masked key 1>&2\r\n@exit /b 0\r\n", "utf8");
+
+  const helperPath = path.resolve("scripts", "windows-helpers.ps1").replaceAll("'", "''");
+  const script = [
+    `. '${helperPath}'`,
+    `if (-not (Test-CodexLoginStatus)) { exit 42 }`
+  ].join("; ");
+  const childEnv = Object.fromEntries(
+    Object.entries(process.env).filter(([key]) => key.toLowerCase() !== "path")
+  );
+  childEnv.Path = `${directory};${process.env.Path || process.env.PATH || ""}`;
+  const result = spawnSync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script], {
+    encoding: "utf8",
+    windowsHide: true,
+    env: childEnv
+  });
+
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.doesNotMatch(result.stdout + result.stderr, /masked key/);
+});
+
 test("Windows 启动脚本在缺少 Node.js 时返回配置向导提示", { skip: process.platform !== "win32" }, () => {
   const startPath = path.resolve("start.ps1").replaceAll("'", "''");
   const powershellPath = path.join(process.env.SystemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");

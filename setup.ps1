@@ -89,7 +89,7 @@ function Install-And-RunBridgeCli {
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $PackageFile -PathType Leaf)) {
       throw "CLI 安装包生成失败：未找到 $PackageFile"
     }
-    & npm.cmd install -g $PackageFile
+    & npm.cmd install -g $PackageFile | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "CLI 全局安装失败。" }
   } finally {
     Remove-Item -LiteralPath $PackageFile -Force -ErrorAction SilentlyContinue
@@ -102,14 +102,15 @@ function Install-And-RunBridgeCli {
   }
 
   Write-Host "统一管理命令安装完成，继续进入配置向导。" -ForegroundColor Green
-  & $CliCommand setup
-  if ($LASTEXITCODE -ne 0) { throw "CLI 配置向导未完成。" }
+  & $CliCommand setup | Out-Host
+  if ($LASTEXITCODE -ne 0) {
+    throw "CLI 配置向导退出，代码 $LASTEXITCODE。请直接运行 feishu-codex-bridge setup 查看原始错误。"
+  }
   return $true
 }
 
 function Ensure-CodexLogin {
-  & codex login status *> $null
-  if ($LASTEXITCODE -eq 0) { return }
+  if (Test-CodexLoginStatus) { return }
 
   Write-Host "Codex CLI 尚未登录。" -ForegroundColor Yellow
   $LoginNow = Read-WithDefault "是否现在运行 codex login？输入 y 或 n" "y"
@@ -118,8 +119,7 @@ function Ensure-CodexLogin {
   }
   & codex login
   if ($LASTEXITCODE -ne 0) { throw "Codex 登录未完成。" }
-  & codex login status *> $null
-  if ($LASTEXITCODE -ne 0) { throw "Codex 登录状态仍不可用。" }
+  if (-not (Test-CodexLoginStatus)) { throw "Codex 登录状态仍不可用。" }
 }
 
 Write-Host "Feishu Codex Bridge 配置向导" -ForegroundColor Cyan
