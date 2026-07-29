@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -91,6 +92,47 @@ test("项目存储只保留允许根目录内的 Task", () => {
     { id: "blocked", cwd: "D:\\Private\\secret" }
   ];
   assert.deepEqual(store.filterThreads(threads).map((thread) => thread.id), ["allowed"]);
+});
+
+test("Codex worktree is allowed when its main repository is allowed", () => {
+  const repositoryRoot = "C:\\MyProject";
+  const worktreeRoot = "C:\\Users\\Administrator\\.codex\\worktrees\\5e10\\MyProject";
+  const store = new DeveloperProjectStore({
+    allowedRoots: [repositoryRoot],
+    gitCommonDirResolver(cwd) {
+      return cwd === worktreeRoot ? `${repositoryRoot}\\.git` : "";
+    }
+  });
+  const threads = [
+    { id: "main", cwd: repositoryRoot },
+    { id: "worktree", cwd: worktreeRoot },
+    { id: "blocked", cwd: "C:\\Users\\Administrator\\.codex\\worktrees\\other\\Secret" }
+  ];
+
+  assert.deepEqual(store.filterThreads(threads).map((thread) => thread.id), ["main", "worktree"]);
+  assert.equal(store.resolveAllowedCwd(worktreeRoot), repositoryRoot);
+  assert.equal(store.projectForThread(threads[1]).cwd, repositoryRoot);
+});
+
+test("Codex worktree is resolved through the real Git common directory", async (t) => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "feishu-codex-worktree-"));
+  t.after(() => fs.rm(directory, { recursive: true, force: true }));
+  const repositoryRoot = path.join(directory, "repository");
+  const worktreeRoot = path.join(directory, "worktree");
+  await fs.mkdir(repositoryRoot);
+  execFileSync("git", ["init"], { cwd: repositoryRoot, stdio: "ignore" });
+  await fs.writeFile(path.join(repositoryRoot, "README.md"), "worktree test\n", "utf8");
+  execFileSync("git", ["add", "README.md"], { cwd: repositoryRoot, stdio: "ignore" });
+  execFileSync(
+    "git",
+    ["-c", "user.name=Bridge Test", "-c", "user.email=bridge@example.invalid", "commit", "-m", "initial"],
+    { cwd: repositoryRoot, stdio: "ignore" }
+  );
+  execFileSync("git", ["worktree", "add", worktreeRoot], { cwd: repositoryRoot, stdio: "ignore" });
+
+  const store = new DeveloperProjectStore({ allowedRoots: [repositoryRoot] });
+  assert.equal(store.isAllowed(worktreeRoot), true);
+  assert.equal(store.resolveAllowedCwd(worktreeRoot), repositoryRoot);
 });
 
 test("Router 只列出允许目录的 Task 并能续聊", async () => {

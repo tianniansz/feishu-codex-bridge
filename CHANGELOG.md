@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 修复 Codex 托管 worktree 位于允许目录外时被 `tasks` 错误过滤的问题；仅在其 Git 原始仓库位于允许目录内时放行。
 - 修复 PowerShell 5.1 将 lark-cli 非致命 stderr 状态输出误判为 `NativeCommandError` 并中断配置的问题。
 - 升级全局 CLI 前自动停止旧服务，避免 Windows 文件锁导致 npm `EBUSY`。
 - 安装向导复用 active Profile、工作目录与配对状态，并改用纯 npm 安装 lark-cli，避免不必要的用户 OAuth 引导。

@@ -1,4 +1,5 @@
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 
 export const DEFAULT_PROJECT = Object.freeze({
   id: 0,
@@ -7,8 +8,10 @@ export const DEFAULT_PROJECT = Object.freeze({
 });
 
 export class DeveloperProjectStore {
-  constructor({ allowedRoots = [] } = {}) {
+  constructor({ allowedRoots = [], gitCommonDirResolver = resolveGitCommonDir } = {}) {
     this.allowedRoots = allowedRoots.map((root) => normalizeCwd(path.resolve(root))).filter(Boolean);
+    this.gitCommonDirResolver = gitCommonDirResolver;
+    this.worktreeRootCache = new Map();
   }
 
   filterThreads(threads = [], metadata = {}) {
@@ -19,9 +22,28 @@ export class DeveloperProjectStore {
   }
 
   isAllowed(cwd) {
+    return Boolean(this.resolveAllowedCwd(cwd));
+  }
+
+  resolveAllowedCwd(cwd) {
     const candidate = normalizeCwd(cwd);
-    if (!candidate) return false;
-    return this.allowedRoots.some((root) => isWithin(root, candidate));
+    if (!candidate) return "";
+    if (this.allowedRoots.some((root) => isWithin(root, candidate))) return candidate;
+
+    const cacheKey = candidate.toLowerCase();
+    if (this.worktreeRootCache.has(cacheKey)) return this.worktreeRootCache.get(cacheKey);
+
+    const resolvedCommonDir = this.gitCommonDirResolver(candidate);
+    const commonDir = normalizeCwd(resolvedCommonDir ? path.normalize(resolvedCommonDir) : "");
+    const repositoryRoot = path.basename(commonDir).toLowerCase() === ".git"
+      ? normalizeCwd(path.dirname(commonDir))
+      : "";
+    const allowedRepositoryRoot = repositoryRoot
+      && this.allowedRoots.some((root) => isWithin(root, repositoryRoot))
+      ? repositoryRoot
+      : "";
+    this.worktreeRootCache.set(cacheKey, allowedRepositoryRoot);
+    return allowedRepositoryRoot;
   }
 
   listProjects({ threads = [], metadata = {} } = {}) {
@@ -33,7 +55,7 @@ export class DeveloperProjectStore {
 
     for (const thread of this.filterThreads(threads, metadata)) {
       const saved = metadata[thread.id] || {};
-      const cwd = normalizeCwd(saved.projectCwd || thread.cwd || thread.workspacePath || "");
+      const cwd = this.resolveAllowedCwd(saved.projectCwd || thread.cwd || thread.workspacePath || "");
       if (!cwd) continue;
       projects.set(cwd.toLowerCase(), {
         id: 0,
@@ -54,16 +76,17 @@ export class DeveloperProjectStore {
 
   projectForThread(thread, { metadata = {}, projects = [] } = {}) {
     const saved = metadata[thread?.id] || {};
-    if (saved.projectName && this.isAllowed(saved.projectCwd)) {
+    const savedProjectCwd = this.resolveAllowedCwd(saved.projectCwd);
+    if (saved.projectName && savedProjectCwd) {
       return {
         id: Number(saved.projectId || 0),
         name: saved.projectName,
-        cwd: saved.projectCwd || ""
+        cwd: savedProjectCwd
       };
     }
 
-    const cwd = normalizeCwd(thread?.cwd || thread?.workspacePath || "");
-    if (!this.isAllowed(cwd)) return DEFAULT_PROJECT;
+    const cwd = this.resolveAllowedCwd(thread?.cwd || thread?.workspacePath || "");
+    if (!cwd) return DEFAULT_PROJECT;
     return projects.find((project) => sameCwd(project.cwd, cwd)) || {
       id: 0,
       name: projectNameFromCwd(cwd),
@@ -102,4 +125,21 @@ function sameCwd(left = "", right = "") {
 function isWithin(root, candidate) {
   const relative = path.relative(path.resolve(root), path.resolve(candidate));
   return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
+function resolveGitCommonDir(cwd) {
+  try {
+    return execFileSync(
+      "git",
+      ["-C", cwd, "rev-parse", "--path-format=absolute", "--git-common-dir"],
+      {
+        encoding: "utf8",
+        timeout: 2_000,
+        windowsHide: true,
+        stdio: ["ignore", "pipe", "ignore"]
+      }
+    ).trim();
+  } catch {
+    return "";
+  }
 }
