@@ -86,18 +86,18 @@ function Test-LarkProfile {
     [string]$LarkCli = "lark-cli"
   )
 
-  $Output = & $LarkCli --profile $Profile whoami --as bot 2>$null | Out-String
-  if ($LASTEXITCODE -ne 0) { return $false }
-  return Test-LarkWhoamiOutput $Output
+  $Result = Invoke-NativeCommandCapture -Command $LarkCli -Arguments @("--profile", $Profile, "whoami", "--as", "bot")
+  if ($Result.ExitCode -ne 0) { return $false }
+  return Test-LarkWhoamiOutput $Result.Output
 }
 
 function Get-ActiveLarkProfile {
   param([string]$LarkCli = "lark-cli.cmd")
 
-  $Output = & $LarkCli config show 2>$null | Out-String
-  if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($Output)) { return $null }
+  $Result = Invoke-NativeCommandCapture -Command $LarkCli -Arguments @("config", "show")
+  if ($Result.ExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($Result.Output)) { return $null }
   try {
-    $Config = $Output | ConvertFrom-Json
+    $Config = $Result.Output | ConvertFrom-Json
   } catch {
     return $null
   }
@@ -113,6 +113,23 @@ function Get-ActiveLarkProfile {
   if (-not [string]::IsNullOrWhiteSpace($Config.profile)) { return [string]$Config.profile }
   if (-not [string]::IsNullOrWhiteSpace($Config.name) -and $Config.active -eq $true) { return [string]$Config.name }
   return $null
+}
+
+function Invoke-NativeCommandCapture {
+  param(
+    [string]$Command,
+    [string[]]$Arguments = @()
+  )
+
+  $PreviousErrorActionPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = "Continue"
+    $Output = & $Command @Arguments 2>$null | Out-String
+    $ExitCode = $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $PreviousErrorActionPreference
+  }
+  return [pscustomobject]@{ ExitCode = $ExitCode; Output = $Output }
 }
 
 function Get-BridgeConfigValue {

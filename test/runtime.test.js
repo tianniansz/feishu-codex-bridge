@@ -104,7 +104,13 @@ test("Windows 助手可读取 active Profile、现有配置和配对状态", { s
   const configFile = path.join(directory, "config.env");
   const runtimeDir = path.join(directory, "runtime");
   await fs.mkdir(runtimeDir, { recursive: true });
-  await fs.writeFile(fakeLark, '@echo [{"name":"active-profile","active":true}]\r\n', "utf8");
+  await fs.writeFile(fakeLark, [
+    '@echo status message 1>&2',
+    '@if "%1"=="config" echo [{"name":"active-profile","active":true}]',
+    '@if not "%1"=="config" echo {"available":true}',
+    '@exit /b 0',
+    ''
+  ].join("\r\n"), "utf8");
   await fs.writeFile(configFile, "LARK_CLI_PROFILE=existing-profile\r\n", "utf8");
   await fs.writeFile(path.join(runtimeDir, "access.json"), JSON.stringify({
     authorizedUsers: [{ senderId: "ou_test" }],
@@ -113,9 +119,11 @@ test("Windows 助手可读取 active Profile、现有配置和配对状态", { s
 
   const helperPath = path.resolve("scripts", "windows-helpers.ps1").replaceAll("'", "''");
   const script = [
+    `$ErrorActionPreference = 'Stop'`,
     `. '${helperPath}'`,
     `$profile = Get-ActiveLarkProfile -LarkCli '${fakeLark.replaceAll("'", "''")}'`,
     `if ($profile -ne 'active-profile') { Write-Error $profile; exit 51 }`,
+    `if (-not (Test-LarkProfile -Profile 'active-profile' -LarkCli '${fakeLark.replaceAll("'", "''")}')) { exit 54 }`,
     `$configured = Get-BridgeConfigValue -ConfigFile '${configFile.replaceAll("'", "''")}' -Name 'LARK_CLI_PROFILE'`,
     `if ($configured -ne 'existing-profile') { Write-Error $configured; exit 52 }`,
     `if (-not (Test-BridgeHasPairedUser -RuntimeDir '${runtimeDir.replaceAll("'", "''")}')) { exit 53 }`
@@ -135,7 +143,7 @@ test("Windows 安装向导按 package.json 计算 npm 包路径", { skip: proces
   const script = [
     `. '${helperPath}'`,
     `$archive = Get-BridgePackageArchivePath -ProjectRoot '${projectRoot}' -Destination '${destination}'`,
-    `if ([IO.Path]::GetFileName($archive) -ne 'feishu-codex-bridge-0.2.0-beta.4.tgz') { Write-Error $archive; exit 41 }`
+    `if ([IO.Path]::GetFileName($archive) -ne 'feishu-codex-bridge-0.2.0-beta.5.tgz') { Write-Error $archive; exit 41 }`
   ].join("; ");
   const result = spawnSync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script], {
     encoding: "utf8",

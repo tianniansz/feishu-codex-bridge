@@ -185,8 +185,15 @@ if (-not (Test-LarkProfile -Profile $Profile -LarkCli "lark-cli.cmd")) {
 
   $Profile = Read-WithDefault "请输入新 Profile 名称" "${Profile}-new"
   Write-Host "本项目仅使用机器人身份，不需要用户 OAuth。请勿选择邮件、云盘等用户权限。" -ForegroundColor Cyan
-  & lark-cli.cmd config init --new --name $Profile --lang zh_cn
-  if ($LASTEXITCODE -ne 0) { throw "飞书应用初始化失败。" }
+  $PreviousErrorActionPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = "Continue"
+    & lark-cli.cmd config init --new --name $Profile --lang zh_cn
+    $LarkInitExitCode = $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $PreviousErrorActionPreference
+  }
+  if ($LarkInitExitCode -ne 0) { throw "飞书应用初始化失败。" }
   if (-not (Test-LarkProfile -Profile $Profile -LarkCli "lark-cli.cmd")) {
     throw "Profile '$Profile' 仍不可用。请确认飞书应用已开启机器人能力、权限已配置并发布，然后重新运行 setup.ps1。"
   }
