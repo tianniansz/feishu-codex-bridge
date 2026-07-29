@@ -210,8 +210,9 @@ test("Windows source updater stops the installed runtime without invoking the ol
   const dataDir = directory.replaceAll("'", "''");
   const script = [
     `. '${helperPath}'`,
-    `$code = Stop-InstalledBridgeForUpgrade -ProjectRoot '${projectRoot}' -DataDir '${dataDir}'`,
-    "if ($code -ne 0) { exit $code }"
+    `$result = @(Stop-InstalledBridgeForUpgrade -ProjectRoot '${projectRoot}' -DataDir '${dataDir}')`,
+    "if ($result.Count -ne 1) { Write-Error \"unexpected result count: $($result.Count)\"; exit 42 }",
+    "if ([int]$result[0] -ne 0) { exit ([int]$result[0]) }"
   ].join("; ");
   const result = spawnSync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script], {
     encoding: "utf8",

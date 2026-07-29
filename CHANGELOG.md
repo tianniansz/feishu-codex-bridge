@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 修复源码停止脚本的状态文本与退出码混合后被误判为升级失败的问题。
 - 源码升级时使用当前源码副本停止现有服务，不再加载即将被 npm 替换的旧全局 CLI 目录。
 - 升级全局 CLI 时等待 Windows 文件句柄释放，安装失败后最多退避重试三次。
 - 增加 `feishu-codex-bridge doctor --tasks`，在本机解释 Task 白名单、worktree 和归档过滤原因。

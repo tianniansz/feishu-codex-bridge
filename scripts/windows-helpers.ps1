@@ -63,19 +63,24 @@ function Stop-InstalledBridgeForUpgrade {
   }
 
   $PreviousHome = [Environment]::GetEnvironmentVariable("FEISHU_CODEX_HOME", "Process")
+  $PreviousErrorActionPreference = $ErrorActionPreference
   $PowerShellExe = (Get-Process -Id $PID).Path
   $StopScript = Join-Path $ProjectRoot "stop.ps1"
   try {
     $env:FEISHU_CODEX_HOME = [IO.Path]::GetFullPath($DataDir)
-    & $PowerShellExe -NoProfile -ExecutionPolicy Bypass -File $StopScript
-    return $LASTEXITCODE
+    $ErrorActionPreference = "Continue"
+    $StopOutput = & $PowerShellExe -NoProfile -ExecutionPolicy Bypass -File $StopScript 2>&1
+    $StopExitCode = $LASTEXITCODE
   } finally {
+    $ErrorActionPreference = $PreviousErrorActionPreference
     if ($null -eq $PreviousHome) {
       Remove-Item Env:\FEISHU_CODEX_HOME -ErrorAction SilentlyContinue
     } else {
       $env:FEISHU_CODEX_HOME = $PreviousHome
     }
   }
+  if ($StopOutput) { $StopOutput | Out-Host }
+  return [int]$StopExitCode
 }
 
 function Get-BridgeDataPaths {
