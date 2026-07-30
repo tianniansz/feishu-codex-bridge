@@ -160,3 +160,5 @@ RC6 将实时状态与最后持久化记录分离，停止承诺外部任务实�
 **通过。** 阿里云 Windows 验收机完成最终 RC6 升级与人工验证。安装向导、服务 ready、`tasks/open/status/doctor --tasks`、当前页活动探测、`Interrupted` 五分钟宽限规则、Bridge/Desktop/CLI 状态区分、并发续聊保护和长任务进度通知符合正式版发布要求。用户明确确认进入首个正式版本发布流程。
 
 正式版版本号更新为 `0.2.0` 后，本地完整测试 58/58、语法检查 28 个文件、npm 包内容审计 43 个文件通过。
+
+npm 上无作用域的 `feishu-codex-bridge` 已属于其他维护者；正式包改用用户自有 scope：`@tianniansz/feishu-codex-bridge`。全局 CLI 命令仍为 `feishu-codex-bridge`。

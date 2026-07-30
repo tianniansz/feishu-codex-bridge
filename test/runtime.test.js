@@ -141,11 +141,12 @@ test("Windows 安装向导按 package.json 计算 npm 包路径", { skip: proces
   const helperPath = path.resolve("scripts", "windows-helpers.ps1").replaceAll("'", "''");
   const projectRoot = path.resolve(".").replaceAll("'", "''");
   const destination = path.resolve(os.tmpdir()).replaceAll("'", "''");
-  const packageVersion = JSON.parse(readFileSync(path.resolve("package.json"), "utf8")).version;
+  const packageMetadata = JSON.parse(readFileSync(path.resolve("package.json"), "utf8"));
+  const archiveName = packageMetadata.name.replace(/^@/, "").replaceAll("/", "-");
   const script = [
     `. '${helperPath}'`,
     `$archive = Get-BridgePackageArchivePath -ProjectRoot '${projectRoot}' -Destination '${destination}'`,
-    `if ([IO.Path]::GetFileName($archive) -ne 'feishu-codex-bridge-${packageVersion}.tgz') { Write-Error $archive; exit 41 }`
+    `if ([IO.Path]::GetFileName($archive) -ne '${archiveName}-${packageMetadata.version}.tgz') { Write-Error $archive; exit 41 }`
   ].join("; ");
   const result = spawnSync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script], {
     encoding: "utf8",

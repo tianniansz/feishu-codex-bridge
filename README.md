@@ -93,7 +93,7 @@ feishu-codex-bridge service install     # 登录 Windows 后自动启动
 正式版可直接通过 npm 安装：
 
 ```powershell
-npm install -g feishu-codex-bridge
+npm install -g @tianniansz/feishu-codex-bridge
 feishu-codex-bridge setup
 ```
 
