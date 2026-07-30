@@ -58,7 +58,7 @@ feishu-codex-bridge service uninstall
 
 ```powershell
 feishu-codex-bridge stop
-npm.cmd uninstall -g feishu-codex-bridge
+npm.cmd uninstall -g @tianniansz/feishu-codex-bridge
 ```
 
 卸载 npm 包后，用户数据目录默认保留，避免误删配对和配置；如需清理，应由用户单独确认后手动删除。
