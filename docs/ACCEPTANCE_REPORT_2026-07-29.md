@@ -139,4 +139,16 @@ RC6 将实时状态与最后持久化记录分离，停止承诺外部任务实�
 
 **结论：Codex 不提供跨 App Server 并发保护。** 在 Windows、Codex CLI 0.144.3 上，第一个 App Server 已收到 `turn/started` 后，第二个 App Server 仍成功对同一 Task 执行 `turn/start`，两轮最终都返回完成。第二个入口加载 Task 时将第一轮记录为 `interrupted`，但第一轮实际仍继续执行并返回结果。
 
-因此 RC6 不再用 `idle`、`notLoaded` 或最后 turn 判断其他入口的实时状态。状态统一为 `Waiting User`、`Running（Bridge）` 和 `Unknown（Desktop/CLI）`；历史 turn 仅显示为“最后记录”。测试 Task 已在验证结束后归档。阿里云 Codex CLI 0.145.0 仍需按人工流程复验显示结果。
+因此首版 RC6 不再直接把 `idle`、`notLoaded` 或最后 turn 当作其他入口的实时状态，只确定显示 `Running（Bridge）`，其余证据不足时显示 `Unknown（Desktop/CLI）`；历史 turn 仅作为“最后记录”。测试 Task 已在验证结束后归档。后续活动探测优化与复验见下一节。
+
+## RC6 首轮人工验收与活动探测优化（2026-07-30）
+
+阿里云验收机完成 RC6 人工升级，`tasks`、`open`、`status`、Bridge 执行状态和重复提交保护通过。首轮体验确认普通已有 Task 在 `tasks` 与初次 `open` 时均显示 `Unknown（Desktop/CLI）`，虽然符合保守能力边界，但不够直观。
+
+后续优化保持 `tasks` 无逐项探测；仅在 `open` 和外部状态 `status` 的现有完整读取之后，对选中 rollout 文件执行约 800ms 的大小与修改时间采样。`inProgress` 或文件变化收敛为 `Running（Desktop/CLI）`，稳定的完成/失败记录收敛为 `Waiting User`，`Interrupted` 或证据不足保持 `Unknown（Desktop/CLI）`。结果缓存 3 秒并合并同一 Task 的并发请求。该优化仍需用新包在阿里云验收机复验。
+
+## RC6 长任务通知修复（2026-07-30）
+
+阿里云验收发现长任务进度通知生成的幂等键长度为 60，超过 lark-cli 的 50 字符限制；发送 Promise 的异常未隔离，Node.js 服务随之退出。修复后，超长完整分段键固定转换为 50 字符的 `fcb-` 加 SHA-256 摘要，不同通知和分段保持唯一；进度、运行中、完成及错误通知失败只记录日志，不再使 Job Promise 拒绝或终止 Bridge。
+
+本地相关测试结果：lark client 5/5、core 26/26。该修复仍需用重新生成的 RC6 包在阿里云验收机复验长任务进度和服务 ready 状态。

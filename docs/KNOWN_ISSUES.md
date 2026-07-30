@@ -1,5 +1,18 @@
 # 已知问题
 
+## P0-20260730-06：长任务进度幂等键超过 50 字符导致服务退出
+
+- 状态：已修复并通过本地相关测试，待 RC6 验收机复验
+- 发现版本：`0.2.0-rc.6`
+- 修复版本：`0.2.0-rc.6`
+- 环境：Windows、lark-cli 1.0.79、较长飞书消息 ID、长任务进度通知
+
+### 原因与修复
+
+Bridge 原先直接拼接 `<messageId>:progress:<timestamp>:<chunk>` 作为幂等键，实际长度达到 60，而 lark-cli 要求 `--idempotency-key` 最多 50 字符。进度通知 Promise 未完全隔离，参数校验失败后异常上抛并终止 Node.js 服务。
+
+RC6 对超过限制的完整分段键使用稳定的 `fcb-` 加 SHA-256 摘要，总长度固定为 50；不同通知和分段仍保持唯一。进度、长时间运行、完成和错误通知均捕获发送失败，只记录 `job.background_failed`，不影响 Job 清理和 Bridge 事件监听。
+
 ## P0-20260729-05：同机独立 App Server 无法互认 Task 实时状态
 
 - 状态：已完成最小并发验证并按能力边界修正展示，待 RC6 验收机复验
@@ -13,7 +26,7 @@ RC4 假设其他入口执行时，持久化的最新 turn 会保持 `inProgress`
 
 2026-07-30 在 Windows、Codex CLI 0.144.3 上完成最小验证：第一个 App Server 的 turn 已启动时，第二个 App Server 对同一 Task 的 `turn/start` 仍被接受并完成；第二个入口读取到第一轮为 `interrupted`，但第一轮随后也正常返回结果。Codex 没有提供可供 Bridge 使用的跨 App Server 互斥或可靠冲突响应。
 
-RC6 将本机 Task 显示为 `Waiting User`、`Running（Bridge）` 或 `Unknown（Desktop/CLI）`，并将“最后记录”单独展示。只有 Bridge 自己管理的 Job 显示确定的 `Running（Bridge）`；无法确认本机其他入口时提示用户确认后再续聊。共享 App Server 或跨入口互斥协议作为后续研究，不作为当前正式版承诺。
+RC6 保留“最后记录”并增加最佳努力活动探测：`open` 和外部状态 `status` 在一次完整读取后，对选中 rollout 文件采样约 800ms。`inProgress` 或文件变化显示 `Running（Desktop/CLI）`，稳定的完成记录显示 `Waiting User`，`Interrupted` 稳定或路径不可用时保持 `Unknown（Desktop/CLI）`。采样按 Task 合并、缓存 3 秒且有 100 项上限；`tasks` 不逐项探测。共享 App Server 或跨入口互斥协议仍作为后续研究，不作为当前正式版承诺。
 
 ## P0-20260729-03：外部运行中的 Task 被误显示为 `Waiting User`
 

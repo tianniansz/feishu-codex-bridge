@@ -52,9 +52,9 @@ export function formatJobStatus(job = null) {
   return lines.join("\n");
 }
 
-export function formatOpenReply(thread = {}, { index = null, project = null, prefix = "", bridgeRunning = false } = {}) {
+export function formatOpenReply(thread = {}, { index = null, project = null, prefix = "", bridgeRunning = false, activity = null } = {}) {
   const title = titleForThread(thread);
-  const runtime = getThreadRuntimeState(thread, { bridgeRunning });
+  const runtime = getThreadRuntimeState(thread, { bridgeRunning, activity });
   const status = runtime.label;
   const header = index ? `已进入 Task #${index}` : "已进入当前 Task";
   const parts = [];
@@ -180,7 +180,7 @@ export function isRunningStatus(status) {
   return RUNNING_STATUS.has(normalizeStatus(status));
 }
 
-export function getThreadRuntimeState(thread = {}, { bridgeRunning = false, bridgeWaiting = false } = {}) {
+export function getThreadRuntimeState(thread = {}, { bridgeRunning = false, bridgeWaiting = false, activity = null } = {}) {
   const threadStatus = normalizeStatus(thread.status);
   const lastTurn = Array.isArray(thread.turns) ? thread.turns.at(-1) : null;
   const turnStatus = normalizeStatus(lastTurn?.status);
@@ -188,11 +188,13 @@ export function getThreadRuntimeState(thread = {}, { bridgeRunning = false, brid
 
   if (bridgeRunning) return runtimeState("running", "Running（Bridge）", "bridge", recorded);
   if (bridgeWaiting) return runtimeState("waiting", "Waiting User", "bridge", recorded);
+  if (activity?.kind === "running") return runtimeState("running", "Running（Desktop/CLI）", activity.evidence || "activity", recorded);
+  if (activity?.kind === "waiting") return runtimeState("waiting", "Waiting User", activity.evidence || "activity", recorded);
   return runtimeState("unknown", "Unknown（Desktop/CLI）", threadStatus === "notloaded" ? "not-loaded" : "unconfirmed", recorded);
 }
 
-export function formatThreadStatus(thread = {}, { refreshedAt = new Date() } = {}) {
-  const runtime = getThreadRuntimeState(thread);
+export function formatThreadStatus(thread = {}, { refreshedAt = new Date(), activity = null } = {}) {
+  const runtime = getThreadRuntimeState(thread, { activity });
   const lines = [
     "Task 信息已刷新",
     "",

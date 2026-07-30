@@ -26,6 +26,7 @@ flowchart LR
 | `src/codex` | Codex App Server JSON-RPC 客户端 |
 | `src/core/router.js` | `tasks/open/status/new/exit`、审批和普通文本路由 |
 | `src/core/taskBrowser.js` | Task 搜索、项目过滤和分页 |
+| `src/core/taskActivityProbe.js` | 单 Task rollout 活动采样、3 秒缓存和并发合并 |
 | `src/core/accessStore.js` | 一次性配对和用户授权 |
 | `src/core/projectStore.js` | 工作目录白名单和 Task 过滤 |
 | `src/core/sessionStore.js` | 飞书用户与当前 Task 的本地映射 |
@@ -62,6 +63,8 @@ turn/completed
 ```
 
 项目不启动 WebSocket 监听器，也不把 App Server 暴露到局域网或公网。
+
+`tasks` 只调用 `thread/list`。`open` 和外部状态 `status` 完成一次 `thread/read` 后，活动探测器只对选中 Task 的 rollout 文件执行两次 `stat`，默认间隔 800ms；不重复启动 App Server，也不读取 JSONL 正文。Bridge Job 优先使用内存状态，探测结果按 Task 缓存 3 秒并合并并发请求。
 
 ## 进程生命周期
 

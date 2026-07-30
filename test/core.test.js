@@ -8,6 +8,7 @@ import { AccessStore } from "../src/core/accessStore.js";
 import { DeveloperProjectStore } from "../src/core/projectStore.js";
 import { DeveloperRouter } from "../src/core/router.js";
 import { DeveloperJobManager } from "../src/core/jobManager.js";
+import { TaskActivityProbe } from "../src/core/taskActivityProbe.js";
 import { browseTasks, parseTaskQuery } from "../src/core/taskBrowser.js";
 import { formatNewTaskReply, formatThreadStatus, getThreadRuntimeState } from "../src/core/taskFormatter.js";
 import { EventStore } from "../src/core/eventStore.js";
@@ -188,7 +189,98 @@ test("Task 列表支持关键词、项目过滤和分页", () => {
   assert.equal(result.threads[0].id, "3");
 });
 
-test("持久化 inProgress 只作为最后记录，不推断外部实时状态", () => {
+test("Task 活动探测直接识别 inProgress，不等待文件采样", async () => {
+  let waited = false;
+  const probe = new TaskActivityProbe({ wait: async () => { waited = true; } });
+  const result = await probe.inspect({
+    id: "running",
+    turns: [{ status: "inProgress" }]
+  });
+
+  assert.deepEqual(result, { kind: "running", evidence: "turn-in-progress" });
+  assert.equal(waited, false);
+});
+
+test("Task 活动探测以 rollout 变化识别 Desktop/CLI 执行中", async () => {
+  const stats = [
+    { size: 100, mtimeMs: 1000 },
+    { size: 120, mtimeMs: 1100 }
+  ];
+  const probe = new TaskActivityProbe({
+    wait: async () => {},
+    stat: async () => stats.shift()
+  });
+  const result = await probe.inspect({
+    id: "changing",
+    path: "C:\\Codex\\rollout.jsonl",
+    turns: [{ status: "interrupted" }]
+  });
+
+  assert.deepEqual(result, { kind: "running", evidence: "rollout-changing" });
+});
+
+test("Task 活动探测将稳定的完成记录识别为 Waiting User 并缓存结果", async () => {
+  let statCalls = 0;
+  const probe = new TaskActivityProbe({
+    wait: async () => {},
+    stat: async () => {
+      statCalls += 1;
+      return { size: 100, mtimeMs: 1000 };
+    }
+  });
+  const thread = {
+    id: "waiting",
+    path: "C:\\Codex\\rollout.jsonl",
+    turns: [{ status: "completed" }]
+  };
+
+  assert.deepEqual(await probe.inspect(thread), { kind: "waiting", evidence: "rollout-stable" });
+  assert.deepEqual(await probe.inspect(thread), { kind: "waiting", evidence: "rollout-stable" });
+  assert.equal(statCalls, 2);
+});
+
+test("Task 活动探测合并同一 Task 的并发采样", async () => {
+  let statCalls = 0;
+  let releaseWait;
+  const probe = new TaskActivityProbe({
+    wait: () => new Promise((resolve) => { releaseWait = resolve; }),
+    stat: async () => {
+      statCalls += 1;
+      return { size: 100, mtimeMs: 1000 };
+    }
+  });
+  const thread = {
+    id: "shared",
+    path: "C:\\Codex\\rollout.jsonl",
+    turns: [{ status: "completed" }]
+  };
+
+  const first = probe.inspect(thread);
+  const second = probe.inspect(thread);
+  await new Promise((resolve) => setImmediate(resolve));
+  releaseWait();
+  assert.deepEqual(await Promise.all([first, second]), [
+    { kind: "waiting", evidence: "rollout-stable" },
+    { kind: "waiting", evidence: "rollout-stable" }
+  ]);
+  assert.equal(statCalls, 2);
+});
+
+test("Task 活动探测对稳定的 Interrupted 保持 Unknown", async () => {
+  const probe = new TaskActivityProbe({
+    wait: async () => {},
+    stat: async () => ({ size: 100, mtimeMs: 1000 })
+  });
+  const result = await probe.inspect({
+    id: "ambiguous",
+    path: "C:\\Codex\\rollout.jsonl",
+    turns: [{ status: "interrupted" }]
+  });
+
+  assert.deepEqual(result, { kind: "unknown", evidence: "rollout-stable-ambiguous" });
+});
+
+test("缺少活动探测结果时，持久化 inProgress 只作为最后记录", () => {
   const thread = {
     id: "external-running",
     status: { type: "notLoaded" },
@@ -252,6 +344,15 @@ test("Bridge 新建且尚未执行的 Task 显示 Waiting User", () => {
   assert.match(message, /🟢 Waiting User/);
 });
 
+test("活动探测结果可显示 Desktop/CLI Running 和 Waiting User", () => {
+  const thread = { status: { type: "notLoaded" }, turns: [{ status: "completed" }] };
+  const running = getThreadRuntimeState(thread, { activity: { kind: "running", evidence: "rollout-changing" } });
+  const waiting = getThreadRuntimeState(thread, { activity: { kind: "waiting", evidence: "rollout-stable" } });
+
+  assert.equal(running.label, "Running（Desktop/CLI）");
+  assert.equal(waiting.label, "Waiting User");
+});
+
 test("只有 Bridge 管理的 Job 显示确定 Running", () => {
   const runtime = getThreadRuntimeState({
     status: { type: "notLoaded" },
@@ -263,7 +364,7 @@ test("只有 Bridge 管理的 Job 显示确定 Running", () => {
   assert.equal(runtime.source, "bridge");
 });
 
-test("Router 分离外部任务实时状态与最后记录，不伪装并发保护", async () => {
+test("Router 识别 Desktop/CLI 活动并阻止并发续聊", async () => {
   const sent = [];
   const runningThread = {
     id: "external-running",
@@ -294,18 +395,19 @@ test("Router 分离外部任务实时状态与最后记录，不伪装并发保�
 
   await router.handle({ ...event, text: "tasks" });
   const opened = await router.handle({ ...event, text: "open 1" });
-  assert.match(opened.reply, /Unknown（Desktop\/CLI）/);
+  assert.match(opened.reply, /Running（Desktop\/CLI）/);
   assert.match(opened.reply, /最后记录：In Progress/);
-  assert.match(opened.reply, /请先确认本机 Desktop\/CLI 没有执行/);
-  assert.doesNotMatch(opened.reply, /普通消息不会追加/);
+  assert.match(opened.reply, /普通消息不会追加/);
 
   const status = await router.handle({ ...event, text: "status" });
   assert.match(status.reply, /Task 信息已刷新/);
+  assert.match(status.reply, /Running（Desktop\/CLI）/);
   assert.match(status.reply, /最后记录：In Progress/);
 
-  const continued = await router.handle({ ...event, text: "继续处理" });
-  assert.equal(continued.ok, true);
-  assert.deepEqual(sent, [{ threadId: "external-running", text: "继续处理" }]);
+  const blocked = await router.handle({ ...event, text: "继续处理" });
+  assert.equal(blocked.ok, false);
+  assert.match(blocked.reply, /仍在执行中/);
+  assert.deepEqual(sent, []);
 });
 
 test("飞书审批码只允许原会话处理", async () => {
@@ -343,6 +445,41 @@ test("飞书审批码只允许原会话处理", async () => {
   assert.equal(manager.resolveApproval({ sessionKey: "oc_1:ou_1", code, decision: "accept" }).ok, false);
   await started.job.promise;
   assert.equal(sent.at(-1).text.includes("accept"), true);
+});
+
+test("后台进度和完成通知发送失败不会使 Job Promise 拒绝", async () => {
+  let clock = 0;
+  let replyAttempts = 0;
+  const manager = new DeveloperJobManager({
+    codexClient: {
+      async sendMessage(_threadId, _text, options) {
+        options.onProgress({
+          method: "item/started",
+          params: { item: { type: "commandExecution", command: "npm test" } }
+        });
+        return { ok: true, text: "done", turn: { id: "turn-1" } };
+      }
+    },
+    feishuClient: {
+      async replyText() {
+        replyAttempts += 1;
+        throw new Error("reply failed");
+      }
+    },
+    runningNoticeDelayMs: 0,
+    progressNoticeIntervalMs: 1,
+    now: () => { clock += 10; return clock; }
+  });
+  const started = manager.start({
+    event: { messageId: "om_long_message_id", chatId: "oc_1" },
+    sessionKey: "oc_1:ou_1",
+    threadId: "thread-1",
+    text: "继续"
+  });
+
+  await assert.doesNotReject(() => started.job.promise);
+  assert.equal(replyAttempts >= 2, true);
+  assert.equal(manager.isRunning("thread-1"), false);
 });
 
 function fakeCodexClient() {

@@ -83,15 +83,32 @@ feishu-codex-bridge doctor --tasks
 status
 ```
 
-飞书中的三种主状态是 `Waiting User`、`Running（Bridge）` 和 `Unknown（Desktop/CLI）`。`open` 和 `status` 会读取完整持久化快照，但无法观察本机另一个 App Server 进程中的实时状态；`Interrupted`、`Completed` 或 `In Progress` 仅作为“最后记录”，不代表任务现在的状态。
+飞书状态包括 `Waiting User`、`Running（Bridge）`、`Running（Desktop/CLI）` 和 `Unknown（Desktop/CLI）`。`open` 和外部状态 `status` 会读取完整快照，并用约 800ms 的 rollout 文件活动采样辅助判断；`tasks` 不执行该探测。`Interrupted`、`Completed` 或 `In Progress` 仍会单独显示为“最后记录”。
 
-本机验证确认两个 App Server 可以同时接受同一 Task 的 `turn/start`，不会返回可靠的并发冲突。如果 Desktop/CLI 正在执行同一 Task，不要从飞书追加普通消息。SSH 连接到本机后执行 Codex 也属于同一本机入口，不是远程 Task。
+`inProgress` 或采样期间文件变化会显示 `Running（Desktop/CLI）` 并阻止续聊；完成记录稳定时显示 `Waiting User`；`Interrupted` 稳定、路径不可用或证据矛盾时保持 `Unknown（Desktop/CLI）`。本机验证确认两个 App Server 可以同时接受同一 Task 的 `turn/start`，所以无法提供强互斥保证。SSH 连接到本机后执行 Codex 也属于同一本机入口，不是远程 Task。
 
 本机可查看原始状态：
 
 ```powershell
 feishu-codex-bridge doctor --tasks
 ```
+
+## 日志提示 idempotency-key 超过 50 字符
+
+如果日志包含：
+
+```text
+--idempotency-key exceeds the maximum of 50 characters
+```
+
+说明安装包仍是修复前的 RC6。修复后的包会把超长完整键稳定压缩为 50 字符，且后台通知失败不会再终止 Bridge。重新安装修复包后执行：
+
+```powershell
+feishu-codex-bridge restart
+feishu-codex-bridge status
+```
+
+预期服务保持“运行中（飞书事件监听已就绪）”。
 
 ## 升级时出现 npm `EBUSY`
 

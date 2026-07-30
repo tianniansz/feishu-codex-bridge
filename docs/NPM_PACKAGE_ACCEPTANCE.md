@@ -37,9 +37,12 @@ feishu-codex-bridge stop
 飞书侧还需确认：
 
 - `tasks` 标题为“本机 Codex Task”。
-- 普通已有 Task 显示 `Unknown（Desktop/CLI）` 时会提示确认其他入口后再续聊。
+- `tasks` 不逐项探测；`open` 对单个 Task 增加约 800ms 采样。
+- 完成记录稳定时显示 `Waiting User`；`inProgress` 或文件变化时显示 `Running（Desktop/CLI）` 并阻止续聊。
+- `Interrupted` 稳定或证据不足时显示 `Unknown（Desktop/CLI）`，并提示确认其他入口。
 - 飞书发起执行后显示 `Running（Bridge）`，重复消息会被拒绝。
 - `Interrupted`、`Completed`、`In Progress` 只出现在“最后记录”，不冒充当前状态。
+- 长任务进度通知使用的 `--idempotency-key` 不超过 50 字符；即使通知发送失败，服务也保持 ready。
 
 ## 自动启动
 

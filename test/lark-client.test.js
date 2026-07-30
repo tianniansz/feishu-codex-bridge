@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { LarkClient, parseCommandFailure, windowsCommand } from "../src/lark/client.js";
+import { LarkClient, normalizeIdempotencyKey, parseCommandFailure, windowsCommand } from "../src/lark/client.js";
 
 test("飞书回复优先使用原消息 ID，而不是按会话发送", async () => {
   let invocation;
@@ -44,6 +44,28 @@ test("缺少消息 ID 时使用会话发送 shortcut", async () => {
   assert.equal(args.includes("+messages-send"), true);
   assert.equal(args.includes("--chat-id"), true);
   assert.equal(args.includes("oc_test"), true);
+});
+
+test("超长幂等键稳定压缩到 50 字符并保持分段唯一", async () => {
+  const keys = [];
+  const client = new LarkClient({
+    bin: "lark-cli.cmd",
+    profile: "test-profile",
+    replyAs: "bot",
+    runtimeDir: "."
+  }, async (_bin, args) => {
+    const index = args.indexOf("--idempotency-key");
+    keys.push(args[index + 1]);
+    return { stdout: '{"ok":true}', stderr: "" };
+  });
+  const source = `${"om_"}${"a".repeat(40)}:progress:1785375970680`;
+
+  await client.replyText("om_test", "A".repeat(7601), source);
+
+  assert.equal(keys.length, 3);
+  assert.equal(keys.every((key) => key.length === 50), true);
+  assert.equal(new Set(keys).size, 3);
+  assert.equal(normalizeIdempotencyKey(`${source}:0`), keys[0]);
 });
 
 test("解析 lark-cli 结构化错误并保留最小权限提示", () => {

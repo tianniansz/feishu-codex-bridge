@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { logger } from "../logger.js";
@@ -21,7 +22,7 @@ export class LarkClient {
         messageId,
         chatId: options.chatId || "",
         text: chunks[index],
-        idempotencyKey: idempotencyKey ? `${idempotencyKey}:${index}` : ""
+        idempotencyKey: idempotencyKey ? normalizeIdempotencyKey(`${idempotencyKey}:${index}`) : ""
       }));
     }
     return responses.at(-1) || null;
@@ -42,6 +43,14 @@ export class LarkClient {
     return this.profile ? ["--profile", this.profile, ...args] : args;
   }
 
+}
+
+export function normalizeIdempotencyKey(value, maxLength = 50) {
+  const candidate = String(value || "");
+  if (candidate.length <= maxLength) return candidate;
+  const prefix = "fcb-";
+  const digest = createHash("sha256").update(candidate).digest("hex");
+  return `${prefix}${digest.slice(0, maxLength - prefix.length)}`;
 }
 
 export function runCommand(bin, args, { stdin = "ignore" } = {}) {

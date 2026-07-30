@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { logger } from "../logger.js";
 import { formatElapsed } from "./taskFormatter.js";
 
 export class DeveloperJobManager {
@@ -45,7 +46,7 @@ export class DeveloperJobManager {
       lastProgressNoticeAt: startedAt
     };
     this.jobs.set(threadId, job);
-    void this.updateDelivery(job, { status: "running" });
+    void this.updateDelivery(job, { status: "running" }).catch((error) => this.logBackgroundFailure("delivery", error));
 
     const runningTimer = this.runningNoticeDelayMs > 0
       ? setTimeout(() => {
@@ -60,6 +61,7 @@ export class DeveloperJobManager {
     })
       .then((result) => this.finishJob(job, result))
       .catch((error) => this.failJob(job, error))
+      .catch((error) => this.logBackgroundFailure("job", error))
       .finally(() => {
         if (runningTimer) clearTimeout(runningTimer);
         this.clearApprovals(job);
@@ -76,11 +78,13 @@ export class DeveloperJobManager {
     if (this.progressNoticeIntervalMs <= 0) return;
     if (this.now() - job.lastProgressNoticeAt < this.progressNoticeIntervalMs) return;
     job.lastProgressNoticeAt = this.now();
-    void this.feishuClient.replyText(
+    void this.sendReply(
+      job,
       job.messageId,
       [`Codex 执行进度：${progress.label}`, progress.detail ? `\n${clip(progress.detail, 500)}` : "", "\n发送 status 可随时查看状态。"].join("").trim(),
       `${job.messageId}:progress:${job.lastProgressNoticeAt}`,
-      { chatId: job.chatId }
+      { chatId: job.chatId },
+      "progress"
     );
   }
 
@@ -92,14 +96,15 @@ export class DeveloperJobManager {
     job.pendingApprovalCode = code;
     job.progress = { label: "等待你的批准", detail: approvalSummary(request), updatedAt: this.now() };
 
-    try {
-      await this.feishuClient.replyText(
-        job.messageId,
-        formatApprovalRequest(code, request),
-        `${job.messageId}:approval:${code}`,
-        { chatId: job.chatId }
-      );
-    } catch {
+    const sent = await this.sendReply(
+      job,
+      job.messageId,
+      formatApprovalRequest(code, request),
+      `${job.messageId}:approval:${code}`,
+      { chatId: job.chatId },
+      "approval"
+    );
+    if (!sent) {
       this.pendingApprovals.delete(code);
       job.pendingApprovalCode = null;
       return { decision: "decline" };
@@ -147,7 +152,8 @@ export class DeveloperJobManager {
   async sendRunningNotice(job) {
     if (!job.chatId) return;
     const elapsed = formatElapsed(this.now() - job.startedAt);
-    await this.feishuClient.replyText(
+    await this.sendReply(
+      job,
       job.messageId,
       [
         "Codex 仍在执行中，时间较长。",
@@ -163,7 +169,8 @@ export class DeveloperJobManager {
         "exit"
       ].join("\n"),
       `${job.messageId}:running`,
-      { chatId: job.chatId }
+      { chatId: job.chatId },
+      "running"
     );
   }
 
@@ -189,7 +196,7 @@ export class DeveloperJobManager {
           "如需退出当前 Task，可发送 exit。"
         ].filter(Boolean).join("\n");
 
-    await this.feishuClient.replyText(job.messageId, reply, `${job.messageId}:completed`, { chatId: job.chatId });
+    await this.sendReply(job, job.messageId, reply, `${job.messageId}:completed`, { chatId: job.chatId }, "completed");
   }
 
   async failJob(job, error) {
@@ -228,7 +235,25 @@ export class DeveloperJobManager {
           "如需退出当前 Task，可发送 exit。"
         ].join("\n");
 
-    await this.feishuClient.replyText(job.messageId, reply, `${job.messageId}:error`, { chatId: job.chatId });
+    await this.sendReply(job, job.messageId, reply, `${job.messageId}:error`, { chatId: job.chatId }, "error");
+  }
+
+  async sendReply(job, messageId, text, idempotencyKey, options, kind) {
+    try {
+      await this.feishuClient.replyText(messageId, text, idempotencyKey, options);
+      return true;
+    } catch (error) {
+      this.logBackgroundFailure(`reply:${kind}`, error, job);
+      return false;
+    }
+  }
+
+  logBackgroundFailure(operation, error, job = null) {
+    logger.error("job.background_failed", {
+      operation,
+      threadId: job?.threadId || "",
+      error: String(error?.message || error || "未知错误").slice(0, 800)
+    });
   }
 
   async updateDelivery(job, patch) {

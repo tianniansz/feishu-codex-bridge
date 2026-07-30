@@ -7,6 +7,10 @@
 - 本机 Codex Task 状态统一为 `Waiting User`、`Running（Bridge）` 和 `Unknown（Desktop/CLI）`，不再把 SSH 作为独立任务类型。
 - `open` 和 `status` 分离“当前状态”与“最后记录”，不再把其他 App Server 写入的 `idle`、`inProgress`、`Interrupted` 或 `Completed` 推断为全局实时状态。
 - 最小并发验证确认 Codex 不会拒绝两个 App Server 同时向同一 Task 发起 `turn/start`；只有 Bridge 自己管理的 Job 显示确定的 `Running（Bridge）`，其他入口状态未知时明确提示并发风险。
+- `open` 和外部状态 `status` 在现有一次完整读取后，对单个 rollout 文件执行 800ms 轻量活动采样：变化或 `inProgress` 显示 `Running（Desktop/CLI）`，稳定的完成记录显示 `Waiting User`，矛盾证据保持 `Unknown（Desktop/CLI）`。
+- 活动采样按 Task 合并并发请求、缓存 3 秒且最多保留 100 项；`tasks` 不执行逐 Task 探测，列表性能不变。
+- 超过 lark-cli 50 字符限制的幂等键会稳定压缩为 `fcb-` 加 SHA-256 摘要，长任务进度和分段回复不再因参数校验失败。
+- 后台进度、长时间运行、完成和错误通知发送失败只记录日志，不再导致 Bridge 服务退出。
 - `doctor --tasks` 增加原始 thread/turn 状态和 Bridge 判定输出。
 - 修复源码停止脚本的状态文本与退出码混合后被误判为升级失败的问题。
 - 源码升级时使用当前源码副本停止现有服务，不再加载即将被 npm 替换的旧全局 CLI 目录。

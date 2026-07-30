@@ -1,6 +1,7 @@
 import { developerSessionKey } from "./sessionStore.js";
 import { DeveloperProjectStore } from "./projectStore.js";
 import { browseTasks, parseTaskQuery } from "./taskBrowser.js";
+import { TaskActivityProbe } from "./taskActivityProbe.js";
 import {
   formatLastTaskStillRunning,
   formatNewTaskReply,
@@ -15,11 +16,12 @@ import {
 } from "./taskFormatter.js";
 
 export class DeveloperRouter {
-  constructor({ codexClient, sessionStore, projectStore = new DeveloperProjectStore(), jobManager = null, maxTasks = 50, taskPageSize = 8, allowCreateTask = false }) {
+  constructor({ codexClient, sessionStore, projectStore = new DeveloperProjectStore(), jobManager = null, activityProbe = new TaskActivityProbe(), maxTasks = 50, taskPageSize = 8, allowCreateTask = false }) {
     this.codexClient = codexClient;
     this.sessionStore = sessionStore;
     this.projectStore = projectStore;
     this.jobManager = jobManager;
+    this.activityProbe = activityProbe;
     this.maxTasks = maxTasks;
     this.taskPageSize = taskPageSize;
     this.allowCreateTask = allowCreateTask;
@@ -178,6 +180,9 @@ export class DeveloperRouter {
     const projects = this.projectStore.listProjects({ threads, metadata: taskMetadata });
     const project = this.projectStore.projectForThread(selected, { metadata: taskMetadata, projects });
     const thread = await this.codexClient.readThread(selected.id, { includeTurns: true });
+    const activity = this.jobManager?.isRunning?.(selected.id)
+      ? null
+      : await this.activityProbe.inspect(thread || selected);
     await this.sessionStore.set(key, {
       threadId: selected.id,
       title: metadata?.title || selected.name || selected.preview || selected.id,
@@ -194,7 +199,8 @@ export class DeveloperRouter {
       reply: formatOpenReply(thread || selected, {
         index,
         project,
-        bridgeRunning: this.jobManager?.isRunning?.(selected.id) || false
+        bridgeRunning: this.jobManager?.isRunning?.(selected.id) || false,
+        activity
       }),
       data: { thread: thread || selected }
     };
@@ -226,6 +232,8 @@ export class DeveloperRouter {
       cwd: session.projectCwd || session.cwd || ""
     };
     const prefix = formatUndeliveredResult(thread, session.lastDelivery);
+    const bridgeRunning = this.jobManager?.isRunning?.(session.threadId) || false;
+    const activity = bridgeRunning ? null : await this.activityProbe.inspect(thread || session);
     if (hasCompletedUndeliveredResult(thread, session.lastDelivery)) {
       await this.sessionStore.update?.(key, {
         lastDelivery: {
@@ -241,7 +249,8 @@ export class DeveloperRouter {
         index: session.index,
         project,
         prefix,
-        bridgeRunning: this.jobManager?.isRunning?.(session.threadId) || false
+        bridgeRunning,
+        activity
       }),
       data: { thread: thread || session }
     };
@@ -266,9 +275,10 @@ export class DeveloperRouter {
     if (job) return { ok: true, reply: formatJobStatus(job) };
 
     const thread = await this.codexClient.readThread(session.threadId, { includeTurns: true });
+    const activity = await this.activityProbe.inspect(thread || session);
     return {
       ok: true,
-      reply: formatThreadStatus(thread || session),
+      reply: formatThreadStatus(thread || session, { activity }),
       data: { thread: thread || null }
     };
   }
@@ -295,7 +305,8 @@ export class DeveloperRouter {
     }
 
     const thread = await this.codexClient.readThread(session.threadId, { includeTurns: true });
-    if (getThreadRuntimeState(thread || {}).kind === "running") {
+    const activity = await this.activityProbe.inspect(thread || session);
+    if (getThreadRuntimeState(thread || {}, { activity }).kind === "running") {
       return {
         ok: false,
         reply: "当前任务仍在执行中，暂不追加新消息。\n\n发送 status 刷新最新状态；发送 open 刷新完整进展。"

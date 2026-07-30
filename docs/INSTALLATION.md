@@ -134,8 +134,8 @@ feishu-codex-bridge service install
 ## 6. 验收
 
 1. Codex Desktop 或 Codex CLI 中至少存在一个位于允许目录内的 Task。
-2. 飞书发送 `tasks` 能看到“本机 Codex Task”，且状态为 `Waiting User`、`Running（Bridge）` 或 `Unknown（Desktop/CLI）`。
-3. 发送 `open 1` 能进入该 Task，并将当前状态与最后记录分开显示。
+2. 飞书发送 `tasks` 能看到“本机 Codex Task”，且列表不会对每个 Task 执行活动采样。
+3. 发送 `open 1` 能进入该 Task；最多增加约 800ms 活动采样，并显示 `Waiting User`、`Running（Desktop/CLI）` 或 `Unknown（Desktop/CLI）` 及最后记录。
 4. 发送普通文本后能收到 Codex 最终回复。
 5. 从飞书发起续聊后，执行期间发送 `status` 能看到 `Running（Bridge）` 和 Bridge 管理的当前阶段。
 6. 本机 Codex 要求批准时，飞书能用 `approve <审批码>` 或 `reject <审批码>` 完成单次处理。
