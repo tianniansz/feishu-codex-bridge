@@ -28,7 +28,7 @@ Set-ExecutionPolicy -Scope Process Bypass
 .\setup.ps1
 ```
 
-源码入口默认执行 `npm pack`，把当前版本安装为全局 `feishu-codex-bridge` 命令，然后自动继续统一配置向导。npm 公共包发布后，已安装 Node.js 的用户可直接使用 `npm install -g <包名>`，无需克隆仓库。
+源码入口默认执行 `npm pack`，把当前版本安装为全局 `feishu-codex-bridge` 命令，然后自动继续统一配置向导。正式版用户也可直接执行 `npm install -g feishu-codex-bridge`，无需克隆仓库；安装后运行 `feishu-codex-bridge setup`。
 
 向导会依次检查：
 

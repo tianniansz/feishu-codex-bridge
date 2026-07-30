@@ -90,7 +90,14 @@ feishu-codex-bridge config edit         # 编辑配置
 feishu-codex-bridge service install     # 登录 Windows 后自动启动
 ```
 
-旧 PowerShell 脚本仍可用于源码开发。npm 公共包尚未发布；当前先通过 `npm pack` 和干净机器完成 beta 验收。
+正式版可直接通过 npm 安装：
+
+```powershell
+npm install -g feishu-codex-bridge
+feishu-codex-bridge setup
+```
+
+旧 PowerShell 脚本仍可用于源码开发和从仓库安装。
 
 ## 安全默认值
 
