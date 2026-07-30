@@ -145,7 +145,9 @@ RC6 将实时状态与最后持久化记录分离，停止承诺外部任务实�
 
 阿里云验收机完成 RC6 人工升级，`tasks`、`open`、`status`、Bridge 执行状态和重复提交保护通过。首轮体验确认普通已有 Task 在 `tasks` 与初次 `open` 时均显示 `Unknown（Desktop/CLI）`，虽然符合保守能力边界，但不够直观。
 
-后续优化保持 `tasks` 无逐项探测；仅在 `open` 和外部状态 `status` 的现有完整读取之后，对选中 rollout 文件执行约 800ms 的大小与修改时间采样。`inProgress` 或文件变化收敛为 `Running（Desktop/CLI）`，稳定的完成/失败记录收敛为 `Waiting User`，`Interrupted` 或证据不足保持 `Unknown（Desktop/CLI）`。结果缓存 3 秒并合并同一 Task 的并发请求。该优化仍需用新包在阿里云验收机复验。
+后续优化改为只探测 `tasks` 当前页：在一个 App Server 中批量读取完整 Task，再以最多 4 路并行对 rollout 文件执行约 800ms 的大小与修改时间采样。`open`、外部状态 `status` 和续聊前只探测选中的 Task。`inProgress` 或文件变化收敛为 `Running（Desktop/CLI）`，稳定的完成/失败记录收敛为 `Waiting User`；稳定的 `Interrupted` 最近 5 分钟有活动时显示 `需确认（Desktop/CLI）` 并阻止续聊，超过宽限期后显示 `Waiting User`。结果缓存 3 秒并合并同一 Task 的并发请求。该优化仍需用新包在阿里云验收机复验。
+
+本地相关测试覆盖当前页范围、4 路并发上限、批量 `thread/read`、近期/过期 `Interrupted` 和续聊阻止逻辑，core + codex 33/33 通过。
 
 ## RC6 长任务通知修复（2026-07-30）
 

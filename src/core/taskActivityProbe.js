@@ -2,11 +2,13 @@ import fs from "node:fs/promises";
 
 const RUNNING_STATUS = new Set(["active", "running", "processing", "queued", "inprogress"]);
 const WAITING_TURN_STATUS = new Set(["completed", "complete", "done", "failed", "error"]);
+const INTERRUPTED_TURN_STATUS = new Set(["interrupted", "cancelled", "canceled"]);
 
 export class TaskActivityProbe {
-  constructor({ waitMs = 800, cacheMs = 3000, maxCacheEntries = 100, stat = fs.stat, wait = delay, now = () => Date.now() } = {}) {
+  constructor({ waitMs = 800, cacheMs = 3000, activityGraceMs = 300_000, maxCacheEntries = 100, stat = fs.stat, wait = delay, now = () => Date.now() } = {}) {
     this.waitMs = waitMs;
     this.cacheMs = cacheMs;
+    this.activityGraceMs = activityGraceMs;
     this.maxCacheEntries = maxCacheEntries;
     this.stat = stat;
     this.wait = wait;
@@ -62,6 +64,13 @@ export class TaskActivityProbe {
     if (WAITING_TURN_STATUS.has(turnStatus) || (!lastTurn && normalizeStatus(thread.status) === "idle")) {
       return activity("waiting", "rollout-stable");
     }
+    if (INTERRUPTED_TURN_STATUS.has(turnStatus)) {
+      const lastActivityAt = latestActivityAt(thread, second.mtimeMs);
+      if (lastActivityAt && this.now() - lastActivityAt <= this.activityGraceMs) {
+        return activity("unknown", "interrupted-recent");
+      }
+      return activity("waiting", "interrupted-stale");
+    }
     return activity("unknown", "rollout-stable-ambiguous");
   }
 }
@@ -96,6 +105,26 @@ function activity(kind, evidence) {
 function normalizeStatus(status) {
   const value = typeof status === "string" ? status : status?.type || status?.state || status?.status;
   return String(value || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function latestActivityAt(thread, rolloutMtimeMs) {
+  const lastTurn = Array.isArray(thread.turns) ? thread.turns.at(-1) : null;
+  const values = [Number(rolloutMtimeMs), ...[
+    thread.updatedAt,
+    thread.updated_at,
+    thread.lastActivityAt,
+    lastTurn?.updatedAt,
+    lastTurn?.completedAt,
+    lastTurn?.createdAt
+  ].map(timestampMs)]
+    .filter((value) => Number.isFinite(value) && value > 0);
+  return values.length ? Math.max(...values) : 0;
+}
+
+function timestampMs(value) {
+  if (typeof value === "number") return value < 10_000_000_000 ? value * 1000 : value;
+  if (!value) return Number.NaN;
+  return Date.parse(value);
 }
 
 function delay(ms) {

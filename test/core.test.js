@@ -144,14 +144,15 @@ test("Router 只列出允许目录的 Task 并能续聊", async () => {
   const codexClient = fakeCodexClient();
   const sessionStore = memorySessionStore();
   const projectStore = new DeveloperProjectStore({ allowedRoots: ["D:\\Projects"] });
-  const router = new DeveloperRouter({ codexClient, sessionStore, projectStore });
+  const activityProbe = { async inspect() { return { kind: "waiting", evidence: "test-stable" }; } };
+  const router = new DeveloperRouter({ codexClient, sessionStore, projectStore, activityProbe });
   const event = { text: "tasks", chatId: "oc_1", senderId: "ou_1" };
 
   const list = await router.handle(event);
   assert.match(list.reply, /Allowed Task/);
   assert.doesNotMatch(list.reply, /Blocked Task/);
   assert.match(list.reply, /本机 Codex Task/);
-  assert.match(list.reply, /Unknown（Desktop\/CLI）/);
+  assert.match(list.reply, /Waiting User/);
   assert.match(list.reply, /查看 Bridge 状态和最后记录/);
 
   const opened = await router.handle({ ...event, text: "open 1" });
@@ -159,6 +160,43 @@ test("Router 只列出允许目录的 Task 并能续聊", async () => {
   const reply = await router.handle({ ...event, text: "继续处理" });
   assert.equal(reply.reply, "Codex reply");
   assert.deepEqual(codexClient.sent, [{ threadId: "allowed", text: "继续处理" }]);
+});
+
+test("Router 只并行探测 tasks 当前页且并发不超过限制", async () => {
+  const threads = Array.from({ length: 6 }, (_, index) => ({
+    id: `thread-${index + 1}`,
+    name: `Task ${index + 1}`,
+    cwd: "D:\\Projects\\demo",
+    path: `C:\\Codex\\rollout-${index + 1}.jsonl`
+  }));
+  const readIds = [];
+  let activeReads = 0;
+  let maxActiveReads = 0;
+  const codexClient = {
+    async listThreads() { return threads; },
+    async readThread(threadId) {
+      readIds.push(threadId);
+      activeReads += 1;
+      maxActiveReads = Math.max(maxActiveReads, activeReads);
+      await new Promise((resolve) => setImmediate(resolve));
+      activeReads -= 1;
+      return { ...threads.find((thread) => thread.id === threadId), turns: [{ status: "completed" }] };
+    }
+  };
+  const router = new DeveloperRouter({
+    codexClient,
+    sessionStore: memorySessionStore(),
+    projectStore: new DeveloperProjectStore({ allowedRoots: ["D:\\Projects"] }),
+    activityProbe: { async inspect() { return { kind: "waiting", evidence: "test-stable" }; } },
+    taskPageSize: 5,
+    taskProbeConcurrency: 4
+  });
+
+  const result = await router.handle({ text: "tasks", chatId: "oc_1", senderId: "ou_1" });
+
+  assert.deepEqual(readIds.sort(), ["thread-1", "thread-2", "thread-3", "thread-4", "thread-5"]);
+  assert.equal(maxActiveReads, 4);
+  assert.equal((result.reply.match(/Waiting User/g) || []).length, 5);
 });
 
 test("Router 默认禁止从飞书新建 Task", async () => {
@@ -266,10 +304,12 @@ test("Task 活动探测合并同一 Task 的并发采样", async () => {
   assert.equal(statCalls, 2);
 });
 
-test("Task 活动探测对稳定的 Interrupted 保持 Unknown", async () => {
+test("Task 活动探测将近期稳定的 Interrupted 保持为需确认", async () => {
+  const now = 1_800_000_000_000;
   const probe = new TaskActivityProbe({
     wait: async () => {},
-    stat: async () => ({ size: 100, mtimeMs: 1000 })
+    stat: async () => ({ size: 100, mtimeMs: now - 10_000 }),
+    now: () => now
   });
   const result = await probe.inspect({
     id: "ambiguous",
@@ -277,7 +317,24 @@ test("Task 活动探测对稳定的 Interrupted 保持 Unknown", async () => {
     turns: [{ status: "interrupted" }]
   });
 
-  assert.deepEqual(result, { kind: "unknown", evidence: "rollout-stable-ambiguous" });
+  assert.deepEqual(result, { kind: "unknown", evidence: "interrupted-recent" });
+});
+
+test("Task 活动探测将超过五分钟且稳定的 Interrupted 识别为 Waiting User", async () => {
+  const now = 1_800_000_000_000;
+  const staleAt = now - 300_001;
+  const probe = new TaskActivityProbe({
+    wait: async () => {},
+    stat: async () => ({ size: 100, mtimeMs: staleAt }),
+    now: () => now
+  });
+  const result = await probe.inspect({
+    id: "stale-interrupted",
+    path: "C:\\Codex\\rollout.jsonl",
+    turns: [{ status: "interrupted", updatedAt: new Date(staleAt).toISOString() }]
+  });
+
+  assert.deepEqual(result, { kind: "waiting", evidence: "interrupted-stale" });
 });
 
 test("缺少活动探测结果时，持久化 inProgress 只作为最后记录", () => {
@@ -293,13 +350,13 @@ test("缺少活动探测结果时，持久化 inProgress 只作为最后记录",
 
   assert.deepEqual(getThreadRuntimeState(thread), {
     kind: "unknown",
-    label: "Unknown（Desktop/CLI）",
+    label: "需确认（Desktop/CLI）",
     source: "not-loaded",
     recorded: { kind: "running", label: "In Progress" }
   });
   const message = formatThreadStatus(thread, { refreshedAt: new Date("2026-07-29T08:00:00Z") });
   assert.match(message, /Task 信息已刷新/);
-  assert.match(message, /状态：🟠 Unknown（Desktop\/CLI）/);
+  assert.match(message, /状态：🟠 需确认（Desktop\/CLI）/);
   assert.match(message, /最后记录：In Progress/);
   assert.match(message, /最后记录为命令执行中/);
   assert.match(message, /“最后记录”不代表当前状态/);
@@ -309,7 +366,7 @@ test("缺少活动探测结果时，持久化 inProgress 只作为最后记录",
 test("notLoaded 且没有持久化记录的 Task 显示其他入口状态未知", () => {
   const runtime = getThreadRuntimeState({ status: { type: "notLoaded" }, turns: [] });
   assert.equal(runtime.kind, "unknown");
-  assert.equal(runtime.label, "Unknown（Desktop/CLI）");
+  assert.equal(runtime.label, "需确认（Desktop/CLI）");
   assert.equal(runtime.recorded.label, "暂无持久化记录");
 });
 
@@ -323,7 +380,7 @@ test("持久化 Interrupted 不冒充当前实时状态", () => {
 
   assert.equal(runtime.kind, "unknown");
   assert.equal(runtime.recorded.label, "Interrupted");
-  assert.match(message, /状态：🟠 Unknown（Desktop\/CLI）/);
+  assert.match(message, /状态：🟠 需确认（Desktop\/CLI）/);
   assert.match(message, /最后记录：Interrupted/);
   assert.doesNotMatch(message, /状态：.*Interrupted/);
 });
@@ -335,7 +392,7 @@ test("独立 App Server 返回 idle 也不冒充 Waiting User", () => {
   });
 
   assert.equal(runtime.kind, "unknown");
-  assert.equal(runtime.label, "Unknown（Desktop/CLI）");
+  assert.equal(runtime.label, "需确认（Desktop/CLI）");
   assert.equal(runtime.recorded.label, "Interrupted");
 });
 
@@ -407,6 +464,39 @@ test("Router 识别 Desktop/CLI 活动并阻止并发续聊", async () => {
   const blocked = await router.handle({ ...event, text: "继续处理" });
   assert.equal(blocked.ok, false);
   assert.match(blocked.reply, /仍在执行中/);
+  assert.deepEqual(sent, []);
+});
+
+test("Router 对近期 Interrupted 的需确认状态阻止续聊", async () => {
+  const sent = [];
+  const thread = {
+    id: "recent-interrupted",
+    name: "Recent",
+    cwd: "D:\\Projects\\demo",
+    path: "C:\\Codex\\rollout.jsonl",
+    status: { type: "notLoaded" },
+    turns: [{ status: "interrupted" }]
+  };
+  const codexClient = {
+    async listThreads() { return [thread]; },
+    async readThread() { return thread; },
+    async sendMessage(threadId, text) { sent.push({ threadId, text }); }
+  };
+  const router = new DeveloperRouter({
+    codexClient,
+    sessionStore: memorySessionStore(),
+    projectStore: new DeveloperProjectStore({ allowedRoots: ["D:\\Projects"] }),
+    activityProbe: { async inspect() { return { kind: "unknown", evidence: "interrupted-recent" }; } }
+  });
+  const event = { chatId: "oc_1", senderId: "ou_1" };
+
+  await router.handle({ ...event, text: "tasks" });
+  const opened = await router.handle({ ...event, text: "open 1" });
+  const blocked = await router.handle({ ...event, text: "继续处理" });
+
+  assert.match(opened.reply, /需确认（Desktop\/CLI）/);
+  assert.equal(blocked.ok, false);
+  assert.match(blocked.reply, /暂不追加新消息/);
   assert.deepEqual(sent, []);
 });
 

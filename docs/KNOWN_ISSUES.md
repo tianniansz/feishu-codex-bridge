@@ -26,7 +26,7 @@ RC4 假设其他入口执行时，持久化的最新 turn 会保持 `inProgress`
 
 2026-07-30 在 Windows、Codex CLI 0.144.3 上完成最小验证：第一个 App Server 的 turn 已启动时，第二个 App Server 对同一 Task 的 `turn/start` 仍被接受并完成；第二个入口读取到第一轮为 `interrupted`，但第一轮随后也正常返回结果。Codex 没有提供可供 Bridge 使用的跨 App Server 互斥或可靠冲突响应。
 
-RC6 保留“最后记录”并增加最佳努力活动探测：`open` 和外部状态 `status` 在一次完整读取后，对选中 rollout 文件采样约 800ms。`inProgress` 或文件变化显示 `Running（Desktop/CLI）`，稳定的完成记录显示 `Waiting User`，`Interrupted` 稳定或路径不可用时保持 `Unknown（Desktop/CLI）`。采样按 Task 合并、缓存 3 秒且有 100 项上限；`tasks` 不逐项探测。共享 App Server 或跨入口互斥协议仍作为后续研究，不作为当前正式版承诺。
+RC6 保留“最后记录”并增加最佳努力活动探测：`tasks` 在一个 App Server 中批量读取当前页 Task，再以最多 4 路并行采样 rollout；`open`、外部状态 `status` 和续聊前只探测选中的 Task。`inProgress` 或文件变化显示 `Running（Desktop/CLI）`，稳定的完成/失败记录显示 `Waiting User`；稳定的 `Interrupted` 最近 5 分钟仍有活动时显示 `需确认（Desktop/CLI）`，超过宽限期后显示 `Waiting User`。运行中和需确认状态均阻止续聊。采样缓存 3 秒且有 100 项上限。共享 App Server 或跨入口互斥协议仍作为后续研究，不作为当前正式版承诺。
 
 ## P0-20260729-03：外部运行中的 Task 被误显示为 `Waiting User`
 

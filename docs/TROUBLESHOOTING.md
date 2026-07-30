@@ -83,9 +83,9 @@ feishu-codex-bridge doctor --tasks
 status
 ```
 
-飞书状态包括 `Waiting User`、`Running（Bridge）`、`Running（Desktop/CLI）` 和 `Unknown（Desktop/CLI）`。`open` 和外部状态 `status` 会读取完整快照，并用约 800ms 的 rollout 文件活动采样辅助判断；`tasks` 不执行该探测。`Interrupted`、`Completed` 或 `In Progress` 仍会单独显示为“最后记录”。
+飞书状态包括 `Waiting User`、`Running（Bridge）`、`Running（Desktop/CLI）` 和 `需确认（Desktop/CLI）`。`tasks` 在一个 App Server 中批量读取当前页 Task，再以最多 4 路并行执行约 800ms 的 rollout 文件活动采样；`open`、外部状态 `status` 和续聊前只探测选中的单个 Task。`Interrupted`、`Completed` 或 `In Progress` 仍会单独显示为“最后记录”。
 
-`inProgress` 或采样期间文件变化会显示 `Running（Desktop/CLI）` 并阻止续聊；完成记录稳定时显示 `Waiting User`；`Interrupted` 稳定、路径不可用或证据矛盾时保持 `Unknown（Desktop/CLI）`。本机验证确认两个 App Server 可以同时接受同一 Task 的 `turn/start`，所以无法提供强互斥保证。SSH 连接到本机后执行 Codex 也属于同一本机入口，不是远程 Task。
+`inProgress` 或采样期间文件变化会显示 `Running（Desktop/CLI）`；完成/失败记录稳定时显示 `Waiting User`；稳定的 `Interrupted` 最近 5 分钟仍有活动时显示 `需确认（Desktop/CLI）`，超过宽限期后显示 `Waiting User`。运行中和需确认状态均阻止续聊。路径不可用或证据矛盾时保持需确认。本机验证确认两个 App Server 可以同时接受同一 Task 的 `turn/start`，所以无法提供强互斥保证。SSH 连接到本机后执行 Codex 也属于同一本机入口，不是远程 Task。
 
 本机可查看原始状态：
 

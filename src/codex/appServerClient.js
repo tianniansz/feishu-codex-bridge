@@ -45,6 +45,17 @@ export class CodexAppServerClient {
     return result[1]?.thread || null;
   }
 
+  async readThreads(threadIds = [], { includeTurns = true } = {}) {
+    const ids = [...new Set(threadIds.filter(Boolean))];
+    if (!ids.length) return [];
+    const requestIds = ids.map((_, index) => index + 1);
+    const result = await this.request(ids.map((threadId, index) => rpc(index + 1, "thread/read", {
+      threadId,
+      includeTurns
+    })), { waitForIds: requestIds });
+    return ids.map((threadId, index) => result[index + 1]?.thread || { id: threadId });
+  }
+
   async resumeThread(threadId) {
     const result = await this.request([
       rpc(1, "thread/resume", { threadId })

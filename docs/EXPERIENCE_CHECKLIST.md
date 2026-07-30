@@ -27,12 +27,12 @@
 - [ ] 普通文本能续接 Task，最终回复能回到原飞书会话。
 - [ ] `status` 能显示执行阶段和耗时。
 - [ ] `tasks` 标题为“本机 Codex Task”，只包含同一用户和 `CODEX_HOME` 中允许访问的 Task。
-- [ ] 状态使用 `Waiting User`、`Running（Bridge）`、`Running（Desktop/CLI）`、`Unknown（Desktop/CLI）`，不把 SSH 作为 Task 类型。
+- [ ] 状态使用 `Waiting User`、`Running（Bridge）`、`Running（Desktop/CLI）`、`需确认（Desktop/CLI）`，不把 SSH 作为 Task 类型。
 - [ ] `open` / `status` 分开显示当前状态和最后记录。
-- [ ] `tasks` 不执行逐 Task 活动探测，列表响应时间不随 800ms 采样成倍增加。
+- [ ] `tasks` 只探测当前页，在一个 App Server 中批量读取，并以最多 4 路并行采样，响应时间不按 Task 数量线性叠加 800ms。
 - [ ] 最新 turn 为 `inProgress` 或 rollout 采样发生变化时显示 `Running（Desktop/CLI）` 并阻止续聊。
-- [ ] 最新 turn 完成且 rollout 稳定时显示 `Waiting User`；`Interrupted` 稳定时保持 `Unknown（Desktop/CLI）`。
-- [ ] `Unknown（Desktop/CLI）` 会明确提示先确认本机其他入口没有执行同一 Task，再发送普通文本。
+- [ ] 最新 turn 完成/失败且 rollout 稳定时显示 `Waiting User`。
+- [ ] `Interrupted` 最近 5 分钟有活动时显示 `需确认（Desktop/CLI）` 并阻止续聊；稳定且超过宽限期后显示 `Waiting User`。
 - [ ] 命令或文件修改触发审批时，只有原会话能 `approve` / `reject`。
 - [ ] 桥接器重启后，配对关系和当前 Task 仍可恢复。
 

@@ -8,8 +8,9 @@
 - [ ] 从上一 beta 升级到 RC 成功，配置、Profile 和配对关系保留。
 - [ ] 干净 Windows 用户完成安装、自动启动、配对、`tasks`、`open` 和续聊。
 - [ ] 普通目录、允许仓库 worktree、白名单外目录和归档 Task 的过滤结果符合预期。
-- [ ] 验收机确认 `Waiting User`、`Running（Bridge）`、`Running/Unknown（Desktop/CLI）` 和“最后记录”的显示符合能力边界。
-- [ ] `tasks` 无逐项采样；`open/status` 单 Task 探测增加不超过约 1 秒，3 秒缓存和并发合并生效。
+- [ ] 验收机确认 `Waiting User`、`Running（Bridge）`、`Running/需确认（Desktop/CLI）` 和“最后记录”的显示符合能力边界。
+- [ ] `tasks` 只探测当前页、批量读取且最多 4 路并行；`open/status` 单 Task 探测增加不超过约 1 秒，3 秒缓存和并发合并生效。
+- [ ] `Interrupted` 最近 5 分钟有活动时阻止续聊，稳定且超过宽限期后显示 `Waiting User`。
 - [ ] 验收机确认其他本机入口执行时不会被误报为 `Waiting User`；用户确认后可从飞书续聊。
 - [ ] 验收机长任务进度通知未出现超过 50 字符的幂等键，通知失败不会终止 Bridge。
 

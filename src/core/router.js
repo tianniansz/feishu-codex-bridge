@@ -16,7 +16,7 @@ import {
 } from "./taskFormatter.js";
 
 export class DeveloperRouter {
-  constructor({ codexClient, sessionStore, projectStore = new DeveloperProjectStore(), jobManager = null, activityProbe = new TaskActivityProbe(), maxTasks = 50, taskPageSize = 8, allowCreateTask = false }) {
+  constructor({ codexClient, sessionStore, projectStore = new DeveloperProjectStore(), jobManager = null, activityProbe = new TaskActivityProbe(), maxTasks = 50, taskPageSize = 8, taskProbeConcurrency = 4, allowCreateTask = false }) {
     this.codexClient = codexClient;
     this.sessionStore = sessionStore;
     this.projectStore = projectStore;
@@ -24,6 +24,7 @@ export class DeveloperRouter {
     this.activityProbe = activityProbe;
     this.maxTasks = maxTasks;
     this.taskPageSize = taskPageSize;
+    this.taskProbeConcurrency = Math.max(1, Math.floor(taskProbeConcurrency || 1));
     this.allowCreateTask = allowCreateTask;
   }
 
@@ -66,6 +67,8 @@ export class DeveloperRouter {
       taskMetadata,
       projectStore: this.projectStore
     });
+    const runningThreadIds = this.jobManager?.runningThreadIds?.() || new Set();
+    const taskActivities = await this.inspectTaskPage(browser.threads, runningThreadIds);
     await this.sessionStore.update?.(key, {
       taskBrowser: {
         threadIds: browser.threads.map((thread) => thread.id),
@@ -81,11 +84,36 @@ export class DeveloperRouter {
       reply: formatTasks(browser.threads, {
         taskMetadata,
         projectStore: this.projectStore,
-        runningThreadIds: this.jobManager?.runningThreadIds?.() || new Set(),
+        runningThreadIds,
+        taskActivities,
         ...browser
       }),
       data: { threads: browser.threads, browser }
     };
+  }
+
+  async inspectTaskPage(threads, runningThreadIds) {
+    const activities = new Map();
+    const candidates = threads.filter((thread) => !runningThreadIds.has(thread.id));
+    let fullThreads = null;
+    if (typeof this.codexClient.readThreads === "function") {
+      try {
+        fullThreads = await this.codexClient.readThreads(candidates.map((thread) => thread.id), { includeTurns: true });
+      } catch {
+        fullThreads = candidates.map(() => null);
+      }
+    }
+    await mapWithConcurrency(candidates, this.taskProbeConcurrency, async (thread, index) => {
+      try {
+        const fullThread = fullThreads
+          ? fullThreads[index]
+          : await this.codexClient.readThread(thread.id, { includeTurns: true });
+        activities.set(thread.id, await this.activityProbe.inspect(fullThread || thread));
+      } catch {
+        activities.set(thread.id, { kind: "unknown", evidence: "probe-failed" });
+      }
+    });
+    return activities;
   }
 
   async handleNew(key) {
@@ -306,10 +334,17 @@ export class DeveloperRouter {
 
     const thread = await this.codexClient.readThread(session.threadId, { includeTurns: true });
     const activity = await this.activityProbe.inspect(thread || session);
-    if (getThreadRuntimeState(thread || {}, { activity }).kind === "running") {
+    const runtime = getThreadRuntimeState(thread || {}, { activity });
+    if (runtime.kind === "running") {
       return {
         ok: false,
         reply: "当前任务仍在执行中，暂不追加新消息。\n\n发送 status 刷新最新状态；发送 open 刷新完整进展。"
+      };
+    }
+    if (runtime.kind === "unknown") {
+      return {
+        ok: false,
+        reply: "当前 Task 最近仍可能由 Desktop/CLI 操作，暂不追加新消息。\n\n请稍后发送 status 或 open 重新确认。"
       };
     }
 
@@ -362,4 +397,17 @@ function isCancelNewFlow(text = "") {
     || command === "取消"
     || command === "退出"
     || command === "退出新建";
+}
+
+async function mapWithConcurrency(values, limit, iteratee) {
+  let index = 0;
+  const workers = Array.from({ length: Math.min(limit, values.length) }, async () => {
+    while (index < values.length) {
+      const currentIndex = index;
+      const current = values[currentIndex];
+      index += 1;
+      await iteratee(current, currentIndex);
+    }
+  });
+  await Promise.all(workers);
 }

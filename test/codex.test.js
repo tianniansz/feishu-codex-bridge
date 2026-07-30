@@ -40,6 +40,15 @@ test("Codex 客户端转发服务端审批请求并返回决定", async () => {
   assert.deepEqual(harness.serverResponses, [{ id: 900, result: { decision: "accept" } }]);
 });
 
+test("Codex 客户端在单个 App Server 中批量读取当前页 Task", async () => {
+  const harness = fakeAppServerHarness({ replyText: "" });
+  const client = new CodexAppServerClient({ bin: "codex", cwd: process.cwd() }, harness.spawn);
+  const threads = await client.readThreads(["thread_1", "thread_2"]);
+
+  assert.deepEqual(threads.map((thread) => thread.id), ["thread_1", "thread_2"]);
+  assert.deepEqual(harness.methods, ["initialize", "thread/read", "thread/read"]);
+});
+
 function fakeAppServerHarness({ replyText, warning = "", approval = false }) {
   const methods = [];
   const serverResponses = [];
@@ -87,7 +96,7 @@ function fakeAppServerHarness({ replyText, warning = "", approval = false }) {
               return;
             }
             if (message.method === "thread/read") {
-              emit({ id: message.id, result: { thread: { id: "thread_1", turns: [{ id: "turn_1", status: "completed", items: [] }] } } });
+              emit({ id: message.id, result: { thread: { id: message.params.threadId, turns: [{ id: "turn_1", status: "completed", items: [] }] } } });
             }
           });
           return true;

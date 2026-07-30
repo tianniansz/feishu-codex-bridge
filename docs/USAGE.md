@@ -55,15 +55,15 @@ Bridge 只关注与它位于同一主机、同一用户、同一 `CODEX_HOME` �
 status
 ```
 
-`tasks` 只读取摘要，不逐个探测。`open` 和外部状态 `status` 会在现有一次完整读取后，对选中的 rollout 文件执行约 800ms 的轻量活动采样，并将状态和历史记录分开显示：
+`tasks` 会在一个 App Server 中批量读取当前页 Task，再以最多 4 路并行对 rollout 文件执行约 800ms 的轻量活动采样。`open`、外部状态 `status` 和发送续聊前只探测选中的单个 Task，并将状态和历史记录分开显示：
 
 - `Waiting User`：最新 turn 已完成或失败，且采样期间 rollout 保持稳定，可以续聊。
 - `Running（Bridge）`：Bridge 正在执行该 Task，暂不可重复提交。
 - `Running（Desktop/CLI）`：最新 turn 为 `inProgress`，或采样期间 rollout 仍在变化；Bridge 会阻止并发续聊。
-- `Unknown（Desktop/CLI）`：记录为 `Interrupted`、路径不可用或证据矛盾，请确认后再续聊。
+- `需确认（Desktop/CLI）`：`Interrupted` 最近 5 分钟仍有活动、路径不可用或证据矛盾，Bridge 会暂时阻止续聊。
 - `最后记录`：显示持久化 turn 的 `In Progress`、`Interrupted`、`Completed` 或 `Failed`，不代表任务现在仍在运行或已经结束。
 
-采样结果缓存 3 秒，同一 Task 的并发请求会合并；不会为 `tasks` 列表中的每个 Task 读取文件。最小验证仍确认 Codex 不会拒绝两个 App Server 同时向同一 Task 发起 `turn/start`，所以该判断属于最佳努力；`Unknown（Desktop/CLI）` 不是错误状态，发送普通文本前仍需确认本机其他入口。
+稳定的 `Interrupted` 超过 5 分钟没有活动后显示 `Waiting User` 并允许续聊。采样结果缓存 3 秒，同一 Task 的并发请求会合并；只探测 `tasks` 当前页。最小验证仍确认 Codex 不会拒绝两个 App Server 同时向同一 Task 发起 `turn/start`，所以该判断属于最佳努力。
 
 `open <编号>` 始终对应机器人最近一次展示的那一页，不是全部 Task 的全局编号。
 

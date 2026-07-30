@@ -4,6 +4,7 @@ export function formatTasks(threads = [], {
   taskMetadata = {},
   projectStore = null,
   runningThreadIds = new Set(),
+  taskActivities = new Map(),
   page = 1,
   pageCount = 1,
   total = threads.length,
@@ -25,7 +26,10 @@ export function formatTasks(threads = [], {
     const project = projectStore?.projectForThread?.(thread, { metadata: taskMetadata }) || {
       name: metadata.projectName || "默认（未分类）"
     };
-    const runtime = getThreadRuntimeState(thread, { bridgeRunning: runningThreadIds.has(thread.id) });
+    const runtime = getThreadRuntimeState(thread, {
+      bridgeRunning: runningThreadIds.has(thread.id),
+      activity: taskActivities.get(thread.id) || null
+    });
     lines.push(`${index + 1}. ${metadata.title || titleForThread(thread)}`);
     lines.push(`项目：${project.name || "默认（未分类）"}`);
     lines.push(`${statusIcon(runtime.label)} ${runtime.label}`);
@@ -86,7 +90,7 @@ export function formatOpenReply(thread = {}, { index = null, project = null, pre
     runtime.kind === "running"
       ? "当前执行结束前，普通消息不会追加到该 Task。"
       : runtime.kind === "unknown"
-        ? "请先确认本机 Desktop/CLI 没有执行该 Task，再发送消息继续。"
+        ? "当前暂不接收普通消息；请稍后发送 status 或 open 重新确认。"
         : "你现在发送的所有消息都将进入该 Task。",
     ...runtimeGuidance(runtime),
     "",
@@ -190,7 +194,7 @@ export function getThreadRuntimeState(thread = {}, { bridgeRunning = false, brid
   if (bridgeWaiting) return runtimeState("waiting", "Waiting User", "bridge", recorded);
   if (activity?.kind === "running") return runtimeState("running", "Running（Desktop/CLI）", activity.evidence || "activity", recorded);
   if (activity?.kind === "waiting") return runtimeState("waiting", "Waiting User", activity.evidence || "activity", recorded);
-  return runtimeState("unknown", "Unknown（Desktop/CLI）", threadStatus === "notloaded" ? "not-loaded" : "unconfirmed", recorded);
+  return runtimeState("unknown", "需确认（Desktop/CLI）", activity?.evidence || (threadStatus === "notloaded" ? "not-loaded" : "unconfirmed"), recorded);
 }
 
 export function formatThreadStatus(thread = {}, { refreshedAt = new Date(), activity = null } = {}) {
@@ -227,7 +231,7 @@ function statusIcon(status) {
   if (status.startsWith("Running")) return "🔵";
   if (status === "Completed") return "✅";
   if (status === "Failed") return "⚠️";
-  if (status.startsWith("Unknown")) return "🟠";
+  if (status.startsWith("Unknown") || status.startsWith("需确认")) return "🟠";
   return "🟢";
 }
 
@@ -248,7 +252,7 @@ function runtimeGuidance(runtime) {
     return [
       "",
       "Bridge 无法确认本机 Desktop/CLI 是否正在执行该 Task。",
-      "请确认其他入口已停止后再续聊；“最后记录”不代表当前状态。"
+      "当前暂不接收普通消息；请稍后刷新。“最后记录”不代表当前状态。"
     ];
   }
   if (runtime.kind === "completed") {

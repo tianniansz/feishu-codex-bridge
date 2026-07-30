@@ -64,7 +64,7 @@ turn/completed
 
 项目不启动 WebSocket 监听器，也不把 App Server 暴露到局域网或公网。
 
-`tasks` 只调用 `thread/list`。`open` 和外部状态 `status` 完成一次 `thread/read` 后，活动探测器只对选中 Task 的 rollout 文件执行两次 `stat`，默认间隔 800ms；不重复启动 App Server，也不读取 JSONL 正文。Bridge Job 优先使用内存状态，探测结果按 Task 缓存 3 秒并合并并发请求。
+`tasks` 先调用 `thread/list`，再在同一个 App Server 中批量 `thread/read` 当前页 Task，并以最多 4 路并行对 rollout 文件执行两次 `stat`，默认间隔 800ms。`open`、外部状态 `status` 和续聊前只读取并探测选中的 Task；不读取 JSONL 正文。Bridge Job 优先使用内存状态，探测结果按 Task 缓存 3 秒并合并并发请求。稳定的 `Interrupted` 使用 5 分钟活动宽限期，超期后视为可续聊。
 
 ## 进程生命周期
 

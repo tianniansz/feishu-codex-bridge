@@ -66,7 +66,7 @@ open 1
 | `tasks project:demo page:2` | 按项目过滤并翻页 |
 | `open 2` | 进入指定 Task |
 | `open` | 刷新当前 Task 的完整信息和最后持久化记录 |
-| `status` | 查看 `Waiting User`、`Running（Bridge）`、`Running/Unknown（Desktop/CLI）` 及最后记录 |
+| `status` | 查看 `Waiting User`、`Running（Bridge）`、`Running/需确认（Desktop/CLI）` 及最后记录 |
 | `approve A1B2C3` | 单次批准当前会话中的 Codex 请求 |
 | `reject A1B2C3` | 拒绝当前会话中的 Codex 请求 |
 | 普通文本 | 发送给当前 Codex Task |

@@ -4,11 +4,12 @@
 
 - Windows 全局升级会在停止前记录 Bridge 子进程树，等待或终止确认属于 Bridge 的残留进程后再替换 npm 包目录。
 - Windows npm 升级重试延长释放等待；持续 `EBUSY` 时明确提示终端工作目录或安全软件等外部占用。
-- 本机 Codex Task 状态统一为 `Waiting User`、`Running（Bridge）` 和 `Unknown（Desktop/CLI）`，不再把 SSH 作为独立任务类型。
+- 本机 Codex Task 状态统一为 `Waiting User`、`Running（Bridge）`、`Running（Desktop/CLI）` 和 `需确认（Desktop/CLI）`，不再把 SSH 作为独立任务类型。
 - `open` 和 `status` 分离“当前状态”与“最后记录”，不再把其他 App Server 写入的 `idle`、`inProgress`、`Interrupted` 或 `Completed` 推断为全局实时状态。
 - 最小并发验证确认 Codex 不会拒绝两个 App Server 同时向同一 Task 发起 `turn/start`；只有 Bridge 自己管理的 Job 显示确定的 `Running（Bridge）`，其他入口状态未知时明确提示并发风险。
-- `open` 和外部状态 `status` 在现有一次完整读取后，对单个 rollout 文件执行 800ms 轻量活动采样：变化或 `inProgress` 显示 `Running（Desktop/CLI）`，稳定的完成记录显示 `Waiting User`，矛盾证据保持 `Unknown（Desktop/CLI）`。
-- 活动采样按 Task 合并并发请求、缓存 3 秒且最多保留 100 项；`tasks` 不执行逐 Task 探测，列表性能不变。
+- `open`、外部状态 `status` 和续聊前对单个 rollout 文件执行 800ms 轻量活动采样：变化或 `inProgress` 显示 `Running（Desktop/CLI）`，稳定的完成/失败记录显示 `Waiting User`。
+- 稳定的 `Interrupted` 在最近 5 分钟有活动时显示 `需确认（Desktop/CLI）`，超过宽限期后显示 `Waiting User`；运行中和需确认状态均阻止并发续聊。
+- `tasks` 在一个 App Server 中批量读取当前页 Task，并以最多 4 路并行采样 rollout；采样按 Task 合并并发请求、缓存 3 秒且最多保留 100 项。
 - 超过 lark-cli 50 字符限制的幂等键会稳定压缩为 `fcb-` 加 SHA-256 摘要，长任务进度和分段回复不再因参数校验失败。
 - 后台进度、长时间运行、完成和错误通知发送失败只记录日志，不再导致 Bridge 服务退出。
 - `doctor --tasks` 增加原始 thread/turn 状态和 Bridge 判定输出。
