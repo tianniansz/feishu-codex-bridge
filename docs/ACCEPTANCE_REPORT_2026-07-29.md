@@ -166,3 +166,11 @@ npm 上无作用域的 `feishu-codex-bridge` 已属于其他维护者；正式�
 ## 0.2.0 正式发布（2026-07-30）
 
 `@tianniansz/feishu-codex-bridge@0.2.0` 已发布到 npm，`latest` 指向 `0.2.0`，公开下载运行返回 `0.2.0`。GitHub 仓库已设为 Public，并创建非草稿、非预发布的 [`v0.2.0` Release](https://github.com/tianniansz/feishu-codex-bridge/releases/tag/v0.2.0)。Release 附件 `tianniansz-feishu-codex-bridge-0.2.0.tgz` 大小为 58,168 字节，SHA-256 为 `D5A03D7295E88EF5F327CFB60B56ED71D23F2B45F4D6E427FC5E9EC5F6B003CA`。
+
+## 0.2.1 消息重投修复发布（2026-07-30）
+
+`@tianniansz/feishu-codex-bridge@0.2.1` 已发布到 npm，`latest` 指向 `0.2.1`，从公开源全新安装后 CLI 返回 `0.2.1`。本地完整测试 61/61、语法检查 28 个文件通过。
+
+GitHub 已创建非草稿、非预发布的 [`v0.2.1` Release](https://github.com/tianniansz/feishu-codex-bridge/releases/tag/v0.2.1)。附件 `tianniansz-feishu-codex-bridge-0.2.1.tgz` 大小为 55,447 字节，SHA-256 为 `DD5125ADBB6332C8F7EF827EA6E5D94847402055858075F343392C703075BC31`；npm `dist.shasum` 为 `ed4ebc3f86c32858643985ead47add2b7b2ded04`。
+
+该版本针对同一飞书原始消息以不同 `event_id` / `message_id` 重投的场景增加内容指纹去重。正式包仍需在验收机发送一次 `tasks`，确认只返回一条列表。
