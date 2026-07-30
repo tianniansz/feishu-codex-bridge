@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 安装向导明确使用产品名“Feishu Codex Bridge 命令行工具”，不再以“统一管理命令”代指产品。
 - Windows 全局升级会在停止前记录 Bridge 子进程树，等待或终止确认属于 Bridge 的残留进程后再替换 npm 包目录。
 - Windows npm 升级重试延长释放等待；持续 `EBUSY` 时明确提示终端工作目录或安全软件等外部占用。
 - 本机 Codex Task 状态统一为 `Waiting User`、`Running（Bridge）`、`Running（Desktop/CLI）` 和 `需确认（Desktop/CLI）`，不再把 SSH 作为独立任务类型。

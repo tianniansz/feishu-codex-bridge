@@ -78,7 +78,7 @@ function Ensure-Node {
 }
 
 function Install-And-RunBridgeCli {
-  $UseCli = Read-WithDefault "是否安装统一管理命令 feishu-codex-bridge？输入 y 或 n" "y"
+  $UseCli = Read-WithDefault "是否安装或升级 Feishu Codex Bridge 命令行工具？安装后可使用 feishu-codex-bridge 管理服务。输入 y 或 n" "y"
   if ($UseCli -notmatch "^(y|yes)$") { return }
 
   $TempDir = [IO.Path]::GetTempPath()
@@ -119,7 +119,7 @@ function Install-And-RunBridgeCli {
     throw "CLI 已安装但未找到命令入口。请重新打开 PowerShell 后运行 feishu-codex-bridge setup。"
   }
 
-  Write-Host "统一管理命令安装完成，继续进入配置向导。" -ForegroundColor Green
+  Write-Host "Feishu Codex Bridge 命令行工具安装完成，继续进入配置向导。" -ForegroundColor Green
   & $CliCommand setup
   if ($LASTEXITCODE -ne 0) {
     throw "CLI 配置向导退出，代码 $LASTEXITCODE。请直接运行 feishu-codex-bridge setup 查看原始错误。"
