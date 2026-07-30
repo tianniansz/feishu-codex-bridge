@@ -99,22 +99,23 @@ function Install-And-RunBridgeCli {
     }
     Write-Host "CLI 安装包生成完成：$([IO.Path]::GetFileName($PackageFile))" -ForegroundColor Green
 
+    $PackageMetadata = Get-Content -LiteralPath (Join-Path $ProjectRoot "package.json") -Raw -Encoding UTF8 | ConvertFrom-Json
+    $NpmPrefix = (& npm.cmd prefix -g | Select-Object -Last 1).Trim()
+    $GlobalPackageDir = Get-BridgeGlobalPackageDir -NpmPrefix $NpmPrefix -PackageName $PackageMetadata.name
     $ExistingCli = Get-Command "feishu-codex-bridge.cmd" -ErrorAction SilentlyContinue
-    $GlobalPackageDir = $null
     if ($ExistingCli) {
-      $GlobalPackageDir = Join-Path (Join-Path (Split-Path -Parent $ExistingCli.Source) "node_modules") "feishu-codex-bridge"
       Write-Host "正在停止旧版本服务并释放安装目录..." -ForegroundColor Cyan
       $StopExitCode = Stop-InstalledBridgeForUpgrade -ProjectRoot $ProjectRoot
       if ($StopExitCode -ne 0) { throw "旧版本服务停止失败，无法安全升级。" }
     }
 
-    Install-BridgeCliPackageWithRetry -PackageFile $PackageFile -GlobalPackageDir $GlobalPackageDir
+    Write-Host "正在旁路安装新版本并切换稳定启动入口..." -ForegroundColor Cyan
+    $InstallResult = Install-BridgeCliSideBySide -PackageFile $PackageFile -ProjectRoot $ProjectRoot -NpmPrefix $NpmPrefix
   } finally {
     Remove-Item -LiteralPath $PackageFile -Force -ErrorAction SilentlyContinue
   }
 
-  $NpmPrefix = (& npm.cmd prefix -g | Select-Object -Last 1).Trim()
-  $CliCommand = Join-Path $NpmPrefix "feishu-codex-bridge.cmd"
+  $CliCommand = $InstallResult.CliCommand
   if (-not (Test-Path -LiteralPath $CliCommand -PathType Leaf)) {
     throw "CLI 已安装但未找到命令入口。请重新打开 PowerShell 后运行 feishu-codex-bridge setup。"
   }
@@ -122,7 +123,12 @@ function Install-And-RunBridgeCli {
   Write-Host "Feishu Codex Bridge 命令行工具安装完成，继续进入配置向导。" -ForegroundColor Green
   & $CliCommand setup
   if ($LASTEXITCODE -ne 0) {
+    Restore-BridgeCliSideBySide -InstallResult $InstallResult
     throw "CLI 配置向导退出，代码 $LASTEXITCODE。请直接运行 feishu-codex-bridge setup 查看原始错误。"
+  }
+  $TaskUpdated = Update-BridgeScheduledTaskLauncher -LauncherPath $InstallResult.LauncherPath -DataDir (Split-Path -Parent $InstallResult.InstallRoot)
+  if ($TaskUpdated) {
+    $null = Remove-BridgeLegacyGlobalPackage -PackageDir $GlobalPackageDir -PackageName $PackageMetadata.name -InstallRoot $InstallResult.InstallRoot
   }
   exit 0
 }

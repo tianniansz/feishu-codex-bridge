@@ -174,3 +174,11 @@ npm 上无作用域的 `feishu-codex-bridge` 已属于其他维护者；正式�
 GitHub 已创建非草稿、非预发布的 [`v0.2.1` Release](https://github.com/tianniansz/feishu-codex-bridge/releases/tag/v0.2.1)。附件 `tianniansz-feishu-codex-bridge-0.2.1.tgz` 大小为 55,447 字节，SHA-256 为 `DD5125ADBB6332C8F7EF827EA6E5D94847402055858075F343392C703075BC31`；npm `dist.shasum` 为 `ed4ebc3f86c32858643985ead47add2b7b2ded04`。
 
 该版本针对同一飞书原始消息以不同 `event_id` / `message_id` 重投的场景增加内容指纹去重。正式包仍需在验收机发送一次 `tasks`，确认只返回一条列表。
+
+## 0.2.2 旁路升级本机 UAT（2026-07-31）
+
+Windows 本机从全局 `0.2.0` 迁移到源码打包的 `0.2.2`。旧 npm scoped 包目录此前持续触发 `EBUSY`，新版不再原地重命名该目录，而是安装到 `%LOCALAPPDATA%\FeishuCodexBridge\install\versions\0.2.2` 并切换稳定启动器。
+
+迁移过程中现有飞书 Profile `codex-dev`、允许目录、Codex 登录和飞书配对均被保留；环境自检全部通过，Bridge 启动并收到事件监听 ready marker。飞书发送一次 `tasks` 只收到一条回复，消息重投修复同时通过最终复验。
+
+发布前验证结果：Windows/CLI 相关测试 22/22、JavaScript 语法检查 29 个文件、PowerShell 脚本解析、npm 包内容审计 44 个文件全部通过。

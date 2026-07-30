@@ -20,33 +20,235 @@ function Refresh-BridgeProcessPath {
   }
 }
 
-function Install-BridgeCliPackageWithRetry {
+function Get-BridgeGlobalPackageDir {
   param(
-    [Parameter(Mandatory = $true)][string]$PackageFile,
-    [string]$NpmCommand = "npm.cmd",
-    [int]$MaxAttempts = 3,
-    [int]$RetryDelayMilliseconds = 3000,
-    [string]$GlobalPackageDir
+    [Parameter(Mandatory = $true)][string]$NpmPrefix,
+    [Parameter(Mandatory = $true)][string]$PackageName
   )
 
-  for ($Attempt = 1; $Attempt -le $MaxAttempts; $Attempt++) {
-    $PreviousErrorActionPreference = $ErrorActionPreference
-    try {
-      $ErrorActionPreference = "Continue"
-      & $NpmCommand install -g $PackageFile
-      $InstallExitCode = $LASTEXITCODE
-    } finally {
-      $ErrorActionPreference = $PreviousErrorActionPreference
+  $PackageParts = @($PackageName -split "/" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+  if ($PackageParts.Count -eq 0) { throw "无效的 npm 包名：$PackageName" }
+  $Result = Join-Path $NpmPrefix "node_modules"
+  foreach ($Part in $PackageParts) { $Result = Join-Path $Result $Part }
+  return [IO.Path]::GetFullPath($Result)
+}
+
+function Get-BridgeInstallRoot {
+  param([string]$LocalAppData = [Environment]::GetFolderPath("LocalApplicationData"))
+
+  if ([string]::IsNullOrWhiteSpace($LocalAppData)) { throw "无法确定当前 Windows 用户的本地数据目录。" }
+  return Join-Path (Join-Path ([IO.Path]::GetFullPath($LocalAppData)) "FeishuCodexBridge") "install"
+}
+
+function Write-BridgeUtf8File {
+  param(
+    [Parameter(Mandatory = $true)][string]$Path,
+    [AllowEmptyString()][string]$Content
+  )
+
+  $Parent = Split-Path -Parent $Path
+  if (-not [string]::IsNullOrWhiteSpace($Parent)) { New-Item -ItemType Directory -Path $Parent -Force | Out-Null }
+  [IO.File]::WriteAllText($Path, $Content, [Text.UTF8Encoding]::new($false))
+}
+
+function Set-BridgeFileAtomically {
+  param(
+    [Parameter(Mandatory = $true)][string]$Path,
+    [AllowEmptyString()][string]$Content
+  )
+
+  $Temporary = "$Path.new-$PID-$([Guid]::NewGuid().ToString('N'))"
+  try {
+    Write-BridgeUtf8File -Path $Temporary -Content $Content
+    Move-Item -LiteralPath $Temporary -Destination $Path -Force
+  } finally {
+    Remove-Item -LiteralPath $Temporary -Force -ErrorAction SilentlyContinue
+  }
+}
+
+function Install-BridgeCliSideBySide {
+  param(
+    [Parameter(Mandatory = $true)][string]$PackageFile,
+    [Parameter(Mandatory = $true)][string]$ProjectRoot,
+    [string]$InstallRoot = (Get-BridgeInstallRoot),
+    [string]$NpmPrefix = ((& npm.cmd prefix -g | Select-Object -Last 1).Trim()),
+    [string]$TarCommand = "tar.exe",
+    [string]$NodeCommand = "node",
+    [string]$ExpectedPackageName
+  )
+
+  if ([string]::IsNullOrWhiteSpace($ExpectedPackageName)) {
+    $ProjectMetadata = Get-Content -LiteralPath (Join-Path $ProjectRoot "package.json") -Raw -Encoding UTF8 | ConvertFrom-Json
+    $ExpectedPackageName = [string]$ProjectMetadata.name
+  }
+  if ([string]::IsNullOrWhiteSpace($ExpectedPackageName)) { throw "无法确定预期 npm 包名。" }
+
+  $VersionsDir = Join-Path $InstallRoot "versions"
+  $StagingDir = Join-Path $InstallRoot ".staging-$PID-$([Guid]::NewGuid().ToString('N'))"
+  $ExtractedPackageDir = Join-Path $StagingDir "package"
+  $LauncherSource = Join-Path $ProjectRoot "scripts\stable-launcher.mjs"
+  $LauncherPath = Join-Path $InstallRoot "launcher.mjs"
+  $CurrentFile = Join-Path $InstallRoot "current.json"
+  $CliCommand = Join-Path $NpmPrefix "feishu-codex-bridge.cmd"
+  $ShimPaths = @(
+    $CliCommand,
+    (Join-Path $NpmPrefix "feishu-codex-bridge.ps1"),
+    (Join-Path $NpmPrefix "feishu-codex-bridge")
+  )
+  $PreviousCurrentExists = Test-Path -LiteralPath $CurrentFile -PathType Leaf
+  $PreviousCurrent = if ($PreviousCurrentExists) { Get-Content -LiteralPath $CurrentFile -Raw -Encoding UTF8 } else { $null }
+  $PreviousShims = @()
+  foreach ($ShimPath in $ShimPaths) {
+    $Exists = Test-Path -LiteralPath $ShimPath -PathType Leaf
+    $PreviousShims += [pscustomobject]@{
+      Path = $ShimPath
+      Exists = $Exists
+      Content = if ($Exists) { Get-Content -LiteralPath $ShimPath -Raw -Encoding UTF8 } else { $null }
+    }
+  }
+
+  New-Item -ItemType Directory -Path $VersionsDir -Force | Out-Null
+  New-Item -ItemType Directory -Path $StagingDir -Force | Out-Null
+  try {
+    & $TarCommand -xf $PackageFile -C $StagingDir
+    if ($LASTEXITCODE -ne 0) { throw "CLI 安装包解压失败，退出码 $LASTEXITCODE。" }
+    $ExtractedMetadataPath = Join-Path $ExtractedPackageDir "package.json"
+    if (-not (Test-Path -LiteralPath $ExtractedMetadataPath -PathType Leaf)) { throw "CLI 安装包缺少 package.json。" }
+    $ExtractedMetadata = Get-Content -LiteralPath $ExtractedMetadataPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($ExtractedMetadata.name -ne $ExpectedPackageName -or [string]::IsNullOrWhiteSpace($ExtractedMetadata.version)) {
+      throw "CLI 安装包元数据不匹配：$($ExtractedMetadata.name)@$($ExtractedMetadata.version)。"
+    }
+    $TargetDir = Join-Path $VersionsDir ([string]$ExtractedMetadata.version)
+    $ExtractedCli = Join-Path $ExtractedPackageDir "bin\cli.js"
+    $ReportedVersion = (& $NodeCommand $ExtractedCli version | Select-Object -Last 1).Trim()
+    if ($LASTEXITCODE -ne 0 -or $ReportedVersion -ne $ExtractedMetadata.version) {
+      throw "CLI 安装包验证失败：预期 $($ExtractedMetadata.version)，实际 $ReportedVersion。"
     }
 
-    if ($InstallExitCode -eq 0) { return }
-    if ($Attempt -ge $MaxAttempts) {
-      $TargetHint = if ([string]::IsNullOrWhiteSpace($GlobalPackageDir)) { "npm 全局包目录" } else { $GlobalPackageDir }
-      throw "CLI 全局安装连续失败 $MaxAttempts 次。Bridge 进程树已停止；请关闭工作目录位于 '$TargetHint' 的终端或文件管理工具，并检查安全软件占用后重试。"
+    if (-not (Test-Path -LiteralPath $TargetDir -PathType Container)) {
+      Move-Item -LiteralPath $ExtractedPackageDir -Destination $TargetDir
+    }
+    if (-not (Test-Path -LiteralPath (Join-Path $TargetDir "bin\cli.js") -PathType Leaf)) {
+      throw "版本目录不完整：$TargetDir"
     }
 
-    Write-Warning "CLI 安装失败，可能是 Windows 文件锁尚未释放；即将进行第 $($Attempt + 1)/$MaxAttempts 次尝试。"
-    Start-Sleep -Milliseconds ($RetryDelayMilliseconds * $Attempt)
+    $LauncherContent = Get-Content -LiteralPath $LauncherSource -Raw -Encoding UTF8
+    Set-BridgeFileAtomically -Path $LauncherPath -Content $LauncherContent
+    $CurrentContent = [ordered]@{
+      version = [string]$ExtractedMetadata.version
+      packageRoot = [IO.Path]::GetFullPath($TargetDir)
+      updatedAt = [DateTime]::UtcNow.ToString("o")
+    } | ConvertTo-Json
+    Set-BridgeFileAtomically -Path $CurrentFile -Content $CurrentContent
+
+    $EscapedLauncherForCmd = $LauncherPath.Replace("%", "%%")
+    Set-BridgeFileAtomically -Path $ShimPaths[0] -Content "@echo off`r`nnode `"$EscapedLauncherForCmd`" %*`r`n"
+    $EscapedLauncherForPowerShell = $LauncherPath.Replace("'", "''")
+    Set-BridgeFileAtomically -Path $ShimPaths[1] -Content "#!/usr/bin/env pwsh`n& node '$EscapedLauncherForPowerShell' @args`nexit `$LASTEXITCODE`n"
+    $LauncherForShell = $LauncherPath.Replace("\", "/").Replace('"', '\"')
+    Set-BridgeFileAtomically -Path $ShimPaths[2] -Content "#!/bin/sh`nexec node `"$LauncherForShell`" `"`$@`"`n"
+  } catch {
+    if ($PreviousCurrentExists) {
+      Set-BridgeFileAtomically -Path $CurrentFile -Content $PreviousCurrent
+    } else {
+      Remove-Item -LiteralPath $CurrentFile -Force -ErrorAction SilentlyContinue
+    }
+    foreach ($PreviousShim in $PreviousShims) {
+      if ($PreviousShim.Exists) {
+        Set-BridgeFileAtomically -Path $PreviousShim.Path -Content $PreviousShim.Content
+      } else {
+        Remove-Item -LiteralPath $PreviousShim.Path -Force -ErrorAction SilentlyContinue
+      }
+    }
+    throw
+  } finally {
+    Remove-Item -LiteralPath $StagingDir -Recurse -Force -ErrorAction SilentlyContinue
+  }
+
+  return [pscustomobject]@{
+    Name = [string]$ExtractedMetadata.name
+    Version = [string]$ExtractedMetadata.version
+    PackageRoot = [IO.Path]::GetFullPath($TargetDir)
+    InstallRoot = [IO.Path]::GetFullPath($InstallRoot)
+    LauncherPath = $LauncherPath
+    CurrentFile = $CurrentFile
+    CliCommand = $CliCommand
+    PreviousCurrentExists = $PreviousCurrentExists
+    PreviousCurrent = $PreviousCurrent
+    PreviousShims = $PreviousShims
+  }
+}
+
+function Update-BridgeScheduledTaskLauncher {
+  param(
+    [Parameter(Mandatory = $true)][string]$LauncherPath,
+    [Parameter(Mandatory = $true)][string]$DataDir
+  )
+
+  $TaskName = "FeishuCodexBridge-$($env:USERNAME)"
+  $PreviousErrorActionPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = "Continue"
+    & schtasks.exe /Query /TN $TaskName 1>$null 2>$null
+    $QueryExitCode = $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $PreviousErrorActionPreference
+  }
+  if ($QueryExitCode -ne 0) { return $true }
+
+  $NodePath = (Get-Command "node" -ErrorAction Stop).Source
+  $TaskCommand = "`"$NodePath`" `"$LauncherPath`" --home `"$DataDir`" start"
+  try {
+    $ErrorActionPreference = "Continue"
+    & schtasks.exe /Change /TN $TaskName /TR $TaskCommand 1>$null
+    $ChangeExitCode = $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $PreviousErrorActionPreference
+  }
+  if ($ChangeExitCode -ne 0) {
+    Write-Warning "自动启动任务未能切换到稳定启动器，已保留旧 npm 包目录：$TaskName"
+    return $false
+  }
+  return $true
+}
+
+function Restore-BridgeCliSideBySide {
+  param([Parameter(Mandatory = $true)]$InstallResult)
+
+  if ($InstallResult.PreviousCurrentExists) {
+    Set-BridgeFileAtomically -Path $InstallResult.CurrentFile -Content $InstallResult.PreviousCurrent
+  } else {
+    Remove-Item -LiteralPath $InstallResult.CurrentFile -Force -ErrorAction SilentlyContinue
+  }
+  foreach ($PreviousShim in $InstallResult.PreviousShims) {
+    if ($PreviousShim.Exists) {
+      Set-BridgeFileAtomically -Path $PreviousShim.Path -Content $PreviousShim.Content
+    } else {
+      Remove-Item -LiteralPath $PreviousShim.Path -Force -ErrorAction SilentlyContinue
+    }
+  }
+}
+
+function Remove-BridgeLegacyGlobalPackage {
+  param(
+    [Parameter(Mandatory = $true)][string]$PackageDir,
+    [Parameter(Mandatory = $true)][string]$PackageName,
+    [Parameter(Mandatory = $true)][string]$InstallRoot
+  )
+
+  if (-not (Test-Path -LiteralPath $PackageDir -PathType Container)) { return $true }
+  $MetadataPath = Join-Path $PackageDir "package.json"
+  try {
+    $Metadata = Get-Content -LiteralPath $MetadataPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($Metadata.name -ne $PackageName) { throw "拒绝清理名称不匹配的目录：$PackageDir" }
+    Remove-Item -LiteralPath $PackageDir -Recurse -Force -ErrorAction Stop
+    return $true
+  } catch {
+    $PendingFile = Join-Path $InstallRoot "pending-cleanup.json"
+    $Pending = [ordered]@{ packageDir = $PackageDir; packageName = $PackageName; recordedAt = [DateTime]::UtcNow.ToString("o") }
+    Set-BridgeFileAtomically -Path $PendingFile -Content ($Pending | ConvertTo-Json)
+    Write-Warning "旧版本目录仍被占用，已延迟清理，不影响当前升级：$PackageDir"
+    return $false
   }
 }
 

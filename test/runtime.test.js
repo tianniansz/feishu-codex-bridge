@@ -239,14 +239,15 @@ test("Windows 源码向导保留 CLI stdin 并关闭 lark-cli 二次确认", { s
   assert.doesNotMatch(setupScript, /Install-And-RunBridgeCli\)\)/);
 });
 
-test("Windows 升级先停止旧服务并隐藏成功打包的原始输出", { skip: process.platform !== "win32" }, async () => {
+test("Windows 升级先停止旧服务再切换到独立版本目录", { skip: process.platform !== "win32" }, async () => {
   const setupScript = await fs.readFile(path.resolve("setup.ps1"), "utf8");
   const stopIndex = setupScript.indexOf("$StopExitCode = Stop-InstalledBridgeForUpgrade -ProjectRoot $ProjectRoot");
-  const installIndex = setupScript.indexOf("Install-BridgeCliPackageWithRetry -PackageFile $PackageFile -GlobalPackageDir $GlobalPackageDir", stopIndex);
+  const installIndex = setupScript.indexOf("Install-BridgeCliSideBySide -PackageFile $PackageFile", stopIndex);
 
   assert.ok(stopIndex >= 0);
   assert.ok(installIndex > stopIndex);
   assert.doesNotMatch(setupScript, /& \$ExistingCli\.Source stop/);
+  assert.doesNotMatch(setupScript, /Install-BridgeCliPackageWithRetry/);
   assert.match(setupScript, /\$PackOutput = & npm\.cmd pack --silent/);
   assert.match(setupScript, /CLI 安装包生成完成/);
   assert.doesNotMatch(setupScript, /npm\.cmd pack --silent[^\r\n]*\| Out-Host/);
@@ -258,8 +259,9 @@ test("Windows 升级停止前记录 Bridge 子进程并确认全部退出", { sk
   assert.match(helperScript, /Get-BridgeDescendantProcessIds -RootProcessId \$BridgePid/);
   assert.match(helperScript, /Wait-BridgeProcessIdsExit -ProcessIds \$TrackedProcessIds/);
   assert.match(helperScript, /Stop-Process -Id \$ProcessId -Force/);
-  assert.match(helperScript, /Bridge 进程树已停止/);
-  assert.match(helperScript, /RetryDelayMilliseconds = 3000/);
+  assert.match(helperScript, /Start-Sleep -Milliseconds 1500/);
+  assert.match(helperScript, /versions/);
+  assert.match(helperScript, /pending-cleanup\.json/);
 });
 
 test("Windows 助手递归收集 Bridge 子进程", { skip: process.platform !== "win32" }, () => {
@@ -300,26 +302,35 @@ test("Windows source updater stops the installed runtime without invoking the ol
   assert.equal(result.status, 0, result.stderr || result.stdout);
 });
 
-test("Windows CLI installer retries a transient global install failure three times", { skip: process.platform !== "win32" }, async (t) => {
-  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "feishu-codex-npm-retry-"));
+test("Windows CLI installer uses versioned directories and a stable launcher", { skip: process.platform !== "win32" }, async (t) => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "feishu-codex-side-by-side-"));
   t.after(() => fs.rm(directory, { recursive: true, force: true }));
-  const counterPath = path.join(directory, "attempts.txt");
-  const fakeNpmPath = path.join(directory, "npm.cmd");
-  await fs.writeFile(counterPath, "0\n", "ascii");
-  await fs.writeFile(fakeNpmPath, [
-    "@echo off",
-    `set /p attempts=<\"${counterPath}\"`,
-    "set /a attempts+=1",
-    `>\"${counterPath}\" echo %attempts%`,
-    "if %attempts% LSS 3 exit /b 1",
-    "exit /b 0"
-  ].join("\r\n"), "ascii");
+  const packageDir = path.join(directory, "source", "package");
+  const archivePath = path.join(directory, "bridge.tgz");
+  const installRoot = path.join(directory, "install");
+  const npmPrefix = path.join(directory, "npm-prefix");
+  await fs.mkdir(path.join(packageDir, "bin"), { recursive: true });
+  await fs.mkdir(npmPrefix, { recursive: true });
+  await fs.writeFile(path.join(packageDir, "package.json"), JSON.stringify({
+    name: "@tianniansz/feishu-codex-bridge",
+    version: "9.9.9",
+    type: "module"
+  }), "utf8");
+  await fs.writeFile(path.join(packageDir, "bin", "cli.js"), "console.log('9.9.9');\n", "utf8");
+  const packed = spawnSync("tar.exe", ["-czf", archivePath, "-C", path.join(directory, "source"), "package"], {
+    encoding: "utf8",
+    windowsHide: true
+  });
+  assert.equal(packed.status, 0, packed.stderr);
 
   const helperPath = path.resolve("scripts", "windows-helpers.ps1").replaceAll("'", "''");
-  const quotedNpmPath = fakeNpmPath.replaceAll("'", "''");
+  const projectRoot = path.resolve(".").replaceAll("'", "''");
   const script = [
     `. '${helperPath}'`,
-    `Install-BridgeCliPackageWithRetry -PackageFile 'test.tgz' -NpmCommand '${quotedNpmPath}' -RetryDelayMilliseconds 1`
+    `$result = Install-BridgeCliSideBySide -PackageFile '${archivePath.replaceAll("'", "''")}' -ProjectRoot '${projectRoot}' -InstallRoot '${installRoot.replaceAll("'", "''")}' -NpmPrefix '${npmPrefix.replaceAll("'", "''")}' -ExpectedPackageName '@tianniansz/feishu-codex-bridge'`,
+    `if ($result.Version -ne '9.9.9') { exit 71 }`,
+    `& $result.CliCommand version`,
+    `if ($LASTEXITCODE -ne 0) { exit 72 }`
   ].join("; ");
   const result = spawnSync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script], {
     encoding: "utf8",
@@ -327,7 +338,11 @@ test("Windows CLI installer retries a transient global install failure three tim
   });
 
   assert.equal(result.status, 0, result.stderr || result.stdout);
-  assert.equal((await fs.readFile(counterPath, "ascii")).trim(), "3");
+  assert.match(result.stdout, /9\.9\.9/);
+  const current = JSON.parse(await fs.readFile(path.join(installRoot, "current.json"), "utf8"));
+  assert.equal(current.version, "9.9.9");
+  assert.equal(current.packageRoot, path.join(installRoot, "versions", "9.9.9"));
+  assert.equal(await fs.readFile(path.join(npmPrefix, "feishu-codex-bridge.cmd"), "utf8").then((value) => /launcher\.mjs/.test(value)), true);
 });
 
 test("Windows 配置向导复用 active Profile、工作目录和配对状态", { skip: process.platform !== "win32" }, async () => {

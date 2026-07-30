@@ -112,18 +112,15 @@ feishu-codex-bridge status
 
 ## 升级时出现 npm `EBUSY`
 
-安装向导会在停止旧服务后等待文件句柄释放，并最多自动尝试三次。三次仍失败时，先检查是否仍有 Bridge 进程：
+`0.2.1` 及更早版本使用 npm 原地替换全局包，旧目录被终端、资源管理器或安全软件占用时可能出现 `EBUSY`。不要继续重复执行 `npm install -g`；从仓库运行一次新版 `setup.ps1`，迁移到版本目录与稳定启动器：
 
 ```powershell
-Get-CimInstance Win32_Process |
-  Where-Object {
-    $_.Name -eq "node.exe" -and
-    $_.CommandLine -match "feishu-codex-bridge"
-  } |
-  Select-Object ProcessId, ParentProcessId, CommandLine
+cd "D:\Documents\开源项目\feishu-codex-bridge"
+Set-ExecutionPolicy -Scope Process Bypass
+.\setup.ps1
 ```
 
-不要使用 `Stop-Process -Name node -Force`，它可能终止电脑上的其他 Node.js 服务。
+迁移后统一使用 `feishu-codex-bridge upgrade`。新版本安装到独立目录，旧 npm 包即使仍被占用，也只会记录为延迟清理，不影响新版本启用。不要使用 `Stop-Process -Name node -Force`，它可能终止电脑上的其他 Node.js 服务。
 
 ## 配对码失效
 

@@ -82,6 +82,7 @@ feishu-codex-bridge status              # 查看状态
 feishu-codex-bridge logs                # 查看最近日志
 feishu-codex-bridge restart             # 重启
 feishu-codex-bridge stop                # 停止
+feishu-codex-bridge upgrade             # 旁路升级到最新版
 feishu-codex-bridge doctor              # 环境自检
 feishu-codex-bridge doctor --tasks      # 诊断 Task 被允许或过滤的原因
 feishu-codex-bridge pairing             # 增加配对用户
@@ -96,6 +97,8 @@ feishu-codex-bridge service install     # 登录 Windows 后自动启动
 npm install -g @tianniansz/feishu-codex-bridge
 feishu-codex-bridge setup
 ```
+
+从 `0.2.2` 开始，后续升级使用 `feishu-codex-bridge upgrade`，不再通过 npm 原地替换正在使用的旧目录。
 
 旧 PowerShell 脚本仍可用于源码开发和从仓库安装。
 

@@ -45,6 +45,15 @@ flowchart LR
 
 源码兼容模式仍使用项目内 `.env` 和 `.runtime`。全局 npm 包升级不会覆盖用户数据目录。
 
+CLI 升级采用旁路版本目录：
+
+- `install/versions/<版本>`：每个已安装版本的只读程序文件。
+- `install/current.json`：当前启用版本指针。
+- `install/launcher.mjs`：不随版本目录切换的稳定启动器。
+- `install/pending-cleanup.json`：被 Windows 目录锁阻止清理的旧 npm 包记录。
+
+升级先在新目录解压并核对包名、版本和 CLI 输出，再原子更新 `current.json` 与全局命令入口。环境自检或新服务启动失败时恢复旧指针和命令入口；旧 npm 目录清理失败仅告警，不影响切换。
+
 这些文件均不进入 Git。Codex 认证信息仍由 Codex CLI 自己管理。
 
 ## Codex 协议

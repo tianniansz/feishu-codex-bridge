@@ -48,6 +48,9 @@ switch (command) {
     exitCode = runPowerShell("stop.ps1");
     if (exitCode === 0) exitCode = runPowerShell("start.ps1");
     break;
+  case "upgrade":
+    exitCode = runPowerShell("upgrade.ps1", commandArgs);
+    break;
   case "doctor":
     exitCode = runNodeScript("scripts/doctor.mjs", commandArgs);
     break;
@@ -138,7 +141,11 @@ function manageService(action) {
       return 1;
     }
     const cliPath = fileURLToPath(import.meta.url);
-    const taskCommand = `"${process.execPath}" "${cliPath}" --home "${paths.dataDir}" start`;
+    const stableLauncher = process.env.LOCALAPPDATA
+      ? path.join(process.env.LOCALAPPDATA, "FeishuCodexBridge", "install", "launcher.mjs")
+      : null;
+    const taskEntry = stableLauncher && fs.existsSync(stableLauncher) ? stableLauncher : cliPath;
+    const taskCommand = `"${process.execPath}" "${taskEntry}" --home "${paths.dataDir}" start`;
     const code = run("schtasks.exe", [
       "/Create", "/SC", "ONLOGON", "/TN", taskName,
       "/TR", taskCommand, "/F"
@@ -183,6 +190,7 @@ function printHelp() {
   logs [行数]           查看最近日志，默认 100 行
   stop                  停止服务
   restart               重启服务
+  upgrade [版本]        旁路升级，默认安装 latest
   pairing [--reset]     生成配对码或撤销全部配对
   config [edit]         显示配置路径或用记事本编辑
   service install       注册当前用户登录时自动启动

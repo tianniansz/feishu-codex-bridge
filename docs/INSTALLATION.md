@@ -28,7 +28,15 @@ Set-ExecutionPolicy -Scope Process Bypass
 .\setup.ps1
 ```
 
-源码入口默认执行 `npm pack`，把当前版本安装为全局 `feishu-codex-bridge` 命令，然后自动继续统一配置向导。正式版用户也可直接执行 `npm install -g @tianniansz/feishu-codex-bridge`，无需克隆仓库；安装后仍运行 `feishu-codex-bridge setup`。
+源码入口默认执行 `npm pack`，把当前版本安装到 `%LOCALAPPDATA%\FeishuCodexBridge\install\versions\<版本>`，再切换全局稳定启动器并继续配置向导。正式版首次安装仍可执行 `npm install -g @tianniansz/feishu-codex-bridge`，安装后运行 `feishu-codex-bridge setup`。
+
+从 `0.2.2` 开始，后续升级使用：
+
+```powershell
+feishu-codex-bridge upgrade
+```
+
+也可指定版本，例如 `feishu-codex-bridge upgrade 0.2.3`。升级会先下载并验证新包，再停止旧服务、切换稳定入口并等待新服务 ready；失败时恢复升级前入口。从 `0.2.1` 或更早版本首次迁移到新升级机制时，需要重新运行仓库中的 `setup.ps1` 一次。
 
 向导会依次检查：
 
@@ -139,6 +147,6 @@ feishu-codex-bridge service install
 4. 发送普通文本后能收到 Codex 最终回复。
 5. 从飞书发起续聊后，执行期间发送 `status` 能看到 `Running（Bridge）` 和 Bridge 管理的当前阶段。
 6. 本机 Codex 要求批准时，飞书能用 `approve <审批码>` 或 `reject <审批码>` 完成单次处理。
-7. 从旧版本重新运行 `setup.ps1` 时，全局 CLI 能停止旧服务并完成升级；Windows 文件锁会自动退避重试，最多三次。
+7. 从旧版本升级时，新包先安装到独立版本目录；旧 npm 目录被锁定时延迟清理，不影响版本切换与回滚。
 
 若失败，请查看[故障排查](TROUBLESHOOTING.md)。准备邀请他人体验前，再完成[发布前体验验收](EXPERIENCE_CHECKLIST.md)。

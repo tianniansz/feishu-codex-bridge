@@ -27,6 +27,7 @@ test("CLI help 和 version 无需配置即可运行", () => {
   assert.equal(help.status, 0, help.stderr);
   assert.match(help.stdout, /用法：feishu-codex-bridge <命令>/);
   assert.match(help.stdout, /^  setup\s+/m);
+  assert.match(help.stdout, /^  upgrade \[版本\]\s+/m);
   assert.equal(version.status, 0, version.stderr);
   const packageVersion = JSON.parse(readFileSync(path.resolve("package.json"), "utf8")).version;
   assert.equal(version.stdout.trim(), packageVersion);
