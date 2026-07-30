@@ -1,19 +1,34 @@
 # 已知问题
 
-## P0-20260729-03：外部运行中的 Task 被误显示为 `Waiting User`
+## P0-20260729-05：同机独立 App Server 无法互认 Task 实时状态
 
-- 状态：已修复
-- 发现版本：`0.2.0-rc.3`
-- 修复版本：`0.2.0-rc.4`
-- 环境：Codex Desktop 发起远程长任务，飞书端随后查看同一 Task
+- 状态：已完成最小并发验证并按能力边界修正展示，待 RC6 验收机复验
+- 发现版本：`0.2.0-rc.5`
+- 修复版本：`0.2.0-rc.6`
+- 环境：同一主机、同一用户、同一 `CODEX_HOME`，Desktop/CLI 与 Bridge 使用不同 App Server 操作同一 Task
 
 ### 原因与修复
 
-`thread.status = notLoaded` 只表示当前 App Server 实例未加载该线程，不能据此判断任务正在等待用户。RC.4 会在 `open` 和 `status` 时读取完整线程快照，并结合最新 turn 状态判断：`inProgress` 显示为 `Running（外部发起）`，没有充分证据时显示 `Unknown`。外部任务执行中禁止从飞书追加普通消息，并明确提示用户主动发送 `status` 或 `open` 刷新；不会承诺自动推送 Desktop 发起任务的进展。
+RC4 假设其他入口执行时，持久化的最新 turn 会保持 `inProgress`。阿里云验收发现，实际运行任务在发起方 App Server 中处于执行状态时，Bridge 的独立 App Server 仍可能读取到 `thread.status = notLoaded` 和最后 turn `interrupted`。App Server 的 `active` 及状态事件属于加载该线程的进程，不能通过另一个独立进程可靠推断。参见 [Codex App Server 文档](https://learn.chatgpt.com/docs/app-server.md)。
+
+2026-07-30 在 Windows、Codex CLI 0.144.3 上完成最小验证：第一个 App Server 的 turn 已启动时，第二个 App Server 对同一 Task 的 `turn/start` 仍被接受并完成；第二个入口读取到第一轮为 `interrupted`，但第一轮随后也正常返回结果。Codex 没有提供可供 Bridge 使用的跨 App Server 互斥或可靠冲突响应。
+
+RC6 将本机 Task 显示为 `Waiting User`、`Running（Bridge）` 或 `Unknown（Desktop/CLI）`，并将“最后记录”单独展示。只有 Bridge 自己管理的 Job 显示确定的 `Running（Bridge）`；无法确认本机其他入口时提示用户确认后再续聊。共享 App Server 或跨入口互斥协议作为后续研究，不作为当前正式版承诺。
+
+## P0-20260729-03：外部运行中的 Task 被误显示为 `Waiting User`
+
+- 状态：修复不完整，已由 P0-20260729-05 接续
+- 发现版本：`0.2.0-rc.3`
+- 修复版本：`0.2.0-rc.4`
+- 环境：本机 Codex Task 由 Desktop/CLI 执行，飞书端随后查看同一 Task；操作入口可以来自本机或 SSH
+
+### 原因与修复
+
+`thread.status = notLoaded` 只表示当前 App Server 实例未加载该线程，不能据此判断任务正在等待用户。RC4 消除了 `Waiting User` 误报，但将持久化 `inProgress` 推断为实时 `Running（外部发起）` 的方案未通过远程验收，后续由 RC6 按 P0-20260729-05 修正。
 
 ## P0-20260729-04：停止旧服务后 npm 全局升级仍持续 `EBUSY`
 
-- 状态：待 RC5 远程复验
+- 状态：已修复并通过 RC5 远程升级复验
 - 发现版本：`0.2.0-rc.4`
 - 修复版本：`0.2.0-rc.5`
 - 环境：Windows PowerShell 5.1、Node.js 24、npm 11

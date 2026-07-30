@@ -75,7 +75,7 @@ feishu-codex-bridge doctor --tasks
 - Windows 路径必须真实存在
 - 修改配置后需要运行 `feishu-codex-bridge restart`
 
-## Desktop 显示执行中，但飞书状态不同
+## Desktop/CLI 显示执行中，但飞书显示 Unknown
 
 进入对应 Task 后发送：
 
@@ -83,7 +83,9 @@ feishu-codex-bridge doctor --tasks
 status
 ```
 
-`tasks` 列表只包含线程摘要；`open` 和 `status` 会读取最新完整快照。其他 Codex 入口发起的任务不会自动向飞书推送进展，需要主动刷新。`Unknown` 表示当前 App Server 无法确认实时状态，不等同于等待用户输入。
+飞书中的三种主状态是 `Waiting User`、`Running（Bridge）` 和 `Unknown（Desktop/CLI）`。`open` 和 `status` 会读取完整持久化快照，但无法观察本机另一个 App Server 进程中的实时状态；`Interrupted`、`Completed` 或 `In Progress` 仅作为“最后记录”，不代表任务现在的状态。
+
+本机验证确认两个 App Server 可以同时接受同一 Task 的 `turn/start`，不会返回可靠的并发冲突。如果 Desktop/CLI 正在执行同一 Task，不要从飞书追加普通消息。SSH 连接到本机后执行 Codex 也属于同一本机入口，不是远程 Task。
 
 本机可查看原始状态：
 

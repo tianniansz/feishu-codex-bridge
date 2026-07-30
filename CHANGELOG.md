@@ -4,8 +4,9 @@
 
 - Windows 全局升级会在停止前记录 Bridge 子进程树，等待或终止确认属于 Bridge 的残留进程后再替换 npm 包目录。
 - Windows npm 升级重试延长释放等待；持续 `EBUSY` 时明确提示终端工作目录或安全软件等外部占用。
-- `open` 和 `status` 支持刷新其他 Codex 入口发起的长任务，根据最新持久化 turn 显示执行状态与进展。
-- `notLoaded` 不再误报为 `Waiting User`；无法确认时显示 `Unknown`，外部任务执行中禁止追加并发消息。
+- 本机 Codex Task 状态统一为 `Waiting User`、`Running（Bridge）` 和 `Unknown（Desktop/CLI）`，不再把 SSH 作为独立任务类型。
+- `open` 和 `status` 分离“当前状态”与“最后记录”，不再把其他 App Server 写入的 `idle`、`inProgress`、`Interrupted` 或 `Completed` 推断为全局实时状态。
+- 最小并发验证确认 Codex 不会拒绝两个 App Server 同时向同一 Task 发起 `turn/start`；只有 Bridge 自己管理的 Job 显示确定的 `Running（Bridge）`，其他入口状态未知时明确提示并发风险。
 - `doctor --tasks` 增加原始 thread/turn 状态和 Bridge 判定输出。
 - 修复源码停止脚本的状态文本与退出码混合后被误判为升级失败的问题。
 - 源码升级时使用当前源码副本停止现有服务，不再加载即将被 npm 替换的旧全局 CLI 目录。

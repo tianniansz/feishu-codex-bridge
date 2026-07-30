@@ -47,22 +47,22 @@ tasks project:my-app          # 按项目名过滤
 tasks 登录 project:my-app page:2
 ```
 
-## 查看其他入口发起的长任务
+## 查看本机 Codex Task 状态
 
-Codex Desktop 发起的任务不会自动向飞书推送进展。进入 Task 后主动发送：
+Bridge 只关注与它位于同一主机、同一用户、同一 `CODEX_HOME` 的 Task。Task 可以由 Desktop、CLI 或 Bridge 创建；SSH 只是操作这台主机的方式，不是另一类 Task。进入 Task 后发送：
 
 ```text
 status
 ```
 
-Bridge 会重新读取远程主机上的 Task 快照并显示刷新时间、最新状态和最近持久化进展。发送 `open` 可刷新完整 Task 信息。
+Bridge 会重新读取本机 Task 快照，并将状态和历史记录分开显示：
 
-- `Running（外部发起）`：最新 thread 或 turn 仍在执行。
-- `Waiting User`：已确认当前等待用户输入。
-- `Completed`：最新 turn 已完成，可以从飞书继续。
-- `Unknown`：当前 App Server 无法确认实时状态，请稍后再次发送 `status`。
+- `Waiting User`：Bridge 有肯定的空闲上下文，可以续聊。
+- `Running（Bridge）`：Bridge 正在执行该 Task，暂不可重复提交。
+- `Unknown（Desktop/CLI）`：Bridge 无法确认本机其他 Codex 入口是否正在执行，请确认后再续聊。
+- `最后记录`：显示持久化 turn 的 `In Progress`、`Interrupted`、`Completed` 或 `Failed`，不代表任务现在仍在运行或已经结束。
 
-检测到外部任务仍在执行时，Bridge 会拒绝追加新消息，避免产生并发 turn。
+最小验证确认 Codex 不会拒绝两个 App Server 同时向同一 Task 发起 `turn/start`。因此 `Unknown（Desktop/CLI）` 不是错误状态；发送普通文本继续 Task 前，请先确认本机 Desktop/CLI 没有执行同一 Task。
 
 `open <编号>` 始终对应机器人最近一次展示的那一页，不是全部 Task 的全局编号。
 

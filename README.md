@@ -61,12 +61,12 @@ open 1
 | 命令 | 作用 |
 |---|---|
 | `pair 123456` | 使用一次性配对码绑定用户 |
-| `tasks` | 查看可续聊的 Codex Task |
+| `tasks` | 查看同一主机、用户和 CODEX_HOME 中的本机 Codex Task |
 | `tasks 登录` | 按标题、摘要或项目搜索 Task |
 | `tasks project:demo page:2` | 按项目过滤并翻页 |
 | `open 2` | 进入指定 Task |
-| `open` | 刷新当前 Task 的完整状态和进展 |
-| `status` | 主动刷新当前 Task 的状态；其他入口发起的任务不会自动推送 |
+| `open` | 刷新当前 Task 的完整信息和最后持久化记录 |
+| `status` | 查看 `Waiting User`、`Running（Bridge）` 或 `Unknown（Desktop/CLI）` 及最后记录 |
 | `approve A1B2C3` | 单次批准当前会话中的 Codex 请求 |
 | `reject A1B2C3` | 拒绝当前会话中的 Codex 请求 |
 | 普通文本 | 发送给当前 Codex Task |

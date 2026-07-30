@@ -26,9 +26,11 @@
 - [ ] `open <编号>` 打开的 Task 与最近一页展示一致。
 - [ ] 普通文本能续接 Task，最终回复能回到原飞书会话。
 - [ ] `status` 能显示执行阶段和耗时。
-- [ ] Desktop 发起的长任务可通过 `open` / `status` 主动刷新，并明确提示不会自动推送。
-- [ ] `notLoaded` 显示为 `Unknown`；最新 turn 为 `inProgress` 时显示 `Running（外部发起）`。
-- [ ] 外部任务执行中发送普通文本会被拒绝，任务完成后可以继续续聊。
+- [ ] `tasks` 标题为“本机 Codex Task”，只包含同一用户和 `CODEX_HOME` 中允许访问的 Task。
+- [ ] 状态使用 `Waiting User`、`Running（Bridge）`、`Unknown（Desktop/CLI）`，不把 SSH 作为 Task 类型。
+- [ ] `open` / `status` 分开显示当前状态和最后记录。
+- [ ] 最新持久化 turn 为 `idle`、`inProgress`、`interrupted` 或 `completed` 时，不会被误报为其他入口的实时状态。
+- [ ] `Unknown（Desktop/CLI）` 会明确提示先确认本机其他入口没有执行同一 Task，再发送普通文本。
 - [ ] 命令或文件修改触发审批时，只有原会话能 `approve` / `reject`。
 - [ ] 桥接器重启后，配对关系和当前 Task 仍可恢复。
 

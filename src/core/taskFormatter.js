@@ -19,23 +19,22 @@ export function formatTasks(threads = [], {
   }
 
   const filters = [query && `关键词：${query}`, project && `项目：${project}`].filter(Boolean).join("；");
-  const lines = ["Codex Desktop Task", `第 ${page}/${pageCount} 页，共 ${total} 个${filters ? `；${filters}` : ""}`, ""];
+  const lines = ["本机 Codex Task", `第 ${page}/${pageCount} 页，共 ${total} 个${filters ? `；${filters}` : ""}`, ""];
   threads.forEach((thread, index) => {
     const metadata = taskMetadata[thread.id] || {};
     const project = projectStore?.projectForThread?.(thread, { metadata: taskMetadata }) || {
       name: metadata.projectName || "默认（未分类）"
     };
     const runtime = getThreadRuntimeState(thread, { bridgeRunning: runningThreadIds.has(thread.id) });
-    const status = runtime.label;
     lines.push(`${index + 1}. ${metadata.title || titleForThread(thread)}`);
     lines.push(`项目：${project.name || "默认（未分类）"}`);
-    lines.push(`${statusIcon(status)} ${status}`);
+    lines.push(`${statusIcon(runtime.label)} ${runtime.label}`);
     lines.push(`更新时间：${formatUpdatedAt(getThreadActivityAt(thread))}`);
     lines.push("");
   });
 
   lines.push("发送 open <编号> 进入指定 Task。");
-  lines.push("进入后发送 status 可主动刷新最新状态和进展。");
+  lines.push("进入后发送 status 可查看 Bridge 状态和最后记录。");
   if (page < pageCount) lines.push(`下一页：tasks${query ? ` ${query}` : ""}${project ? ` project:${project}` : ""} page:${page + 1}`);
   return lines.join("\n").trim();
 }
@@ -43,7 +42,7 @@ export function formatTasks(threads = [], {
 export function formatJobStatus(job = null) {
   if (!job) return "当前 Task 没有正在执行的任务。";
   const lines = [
-    "Codex 正在执行",
+    "🔵 Running（Bridge）",
     "",
     `运行时长：${formatElapsed(Date.now() - job.startedAt)}`,
     `当前阶段：${job.progress?.label || "正在思考和处理"}`
@@ -76,7 +75,9 @@ export function formatOpenReply(thread = {}, { index = null, project = null, pre
     "状态：",
     `${statusIcon(status)} ${status}`,
     "",
-    "最近进展：",
+    `最后记录：${runtime.recorded.label}`,
+    "",
+    "最近持久化进展：",
     formatLatestProgress(thread),
     "",
     "最后一次对话：",
@@ -84,7 +85,9 @@ export function formatOpenReply(thread = {}, { index = null, project = null, pre
     "",
     runtime.kind === "running"
       ? "当前执行结束前，普通消息不会追加到该 Task。"
-      : "你现在发送的所有消息都将进入该 Task。",
+      : runtime.kind === "unknown"
+        ? "请先确认本机 Desktop/CLI 没有执行该 Task，再发送消息继续。"
+        : "你现在发送的所有消息都将进入该 Task。",
     ...runtimeGuidance(runtime),
     "",
     "输入 exit 可退出当前 Task。"
@@ -94,7 +97,7 @@ export function formatOpenReply(thread = {}, { index = null, project = null, pre
 }
 
 export function formatNewTaskReply(thread = {}, { project = null } = {}) {
-  const runtime = getThreadRuntimeState(thread);
+  const runtime = getThreadRuntimeState(thread, { bridgeWaiting: true });
   return [
     "已创建并进入新 Task",
     "",
@@ -177,37 +180,27 @@ export function isRunningStatus(status) {
   return RUNNING_STATUS.has(normalizeStatus(status));
 }
 
-export function getThreadRuntimeState(thread = {}, { bridgeRunning = false } = {}) {
-  if (bridgeRunning) return runtimeState("running", "Running", "bridge");
-
+export function getThreadRuntimeState(thread = {}, { bridgeRunning = false, bridgeWaiting = false } = {}) {
   const threadStatus = normalizeStatus(thread.status);
   const lastTurn = Array.isArray(thread.turns) ? thread.turns.at(-1) : null;
   const turnStatus = normalizeStatus(lastTurn?.status);
+  const recorded = recordedState(turnStatus);
 
-  if (RUNNING_STATUS.has(threadStatus)) return runtimeState("running", "Running（外部发起）", "thread");
-  if (RUNNING_STATUS.has(turnStatus)) return runtimeState("running", "Running（外部发起）", "persisted-turn");
-  if (threadStatus === "systemerror" || ["failed", "error"].includes(turnStatus)) {
-    return runtimeState("failed", "Failed", "thread");
-  }
-  if (["completed", "complete", "done"].includes(turnStatus)) {
-    return runtimeState("completed", "Completed", "persisted-turn");
-  }
-  if (["interrupted", "cancelled", "canceled"].includes(turnStatus)) {
-    return runtimeState("completed", "Interrupted", "persisted-turn");
-  }
-  if (threadStatus === "idle") return runtimeState("waiting", "Waiting User", "thread");
-  return runtimeState("unknown", "Unknown", threadStatus === "notloaded" ? "not-loaded" : "unknown");
+  if (bridgeRunning) return runtimeState("running", "Running（Bridge）", "bridge", recorded);
+  if (bridgeWaiting) return runtimeState("waiting", "Waiting User", "bridge", recorded);
+  return runtimeState("unknown", "Unknown（Desktop/CLI）", threadStatus === "notloaded" ? "not-loaded" : "unconfirmed", recorded);
 }
 
 export function formatThreadStatus(thread = {}, { refreshedAt = new Date() } = {}) {
   const runtime = getThreadRuntimeState(thread);
   const lines = [
-    "Task 状态已刷新",
+    "Task 信息已刷新",
     "",
     `刷新时间：${formatRefreshTime(refreshedAt)}`,
     `状态：${statusIcon(runtime.label)} ${runtime.label}`,
+    `最后记录：${runtime.recorded.label}`,
     "",
-    `最近进展：${formatLatestProgress(thread)}`
+    `最近持久化进展：${formatLatestProgress(thread)}`
   ];
   lines.push(...runtimeGuidance(runtime));
   return lines.join("\n").trim();
@@ -232,27 +225,28 @@ function statusIcon(status) {
   if (status.startsWith("Running")) return "🔵";
   if (status === "Completed") return "✅";
   if (status === "Failed") return "⚠️";
-  if (status === "Unknown") return "⚪";
+  if (status.startsWith("Unknown")) return "🟠";
   return "🟢";
 }
 
-function runtimeState(kind, label, source) {
-  return { kind, label, source };
+function runtimeState(kind, label, source, recorded = recordedState("")) {
+  return { kind, label, source, recorded };
+}
+
+function recordedState(status) {
+  if (RUNNING_STATUS.has(status)) return { kind: "running", label: "In Progress" };
+  if (["completed", "complete", "done"].includes(status)) return { kind: "completed", label: "Completed" };
+  if (["interrupted", "cancelled", "canceled"].includes(status)) return { kind: "interrupted", label: "Interrupted" };
+  if (["failed", "error"].includes(status)) return { kind: "failed", label: "Failed" };
+  return { kind: "unknown", label: "暂无持久化记录" };
 }
 
 function runtimeGuidance(runtime) {
-  if (runtime.kind === "running" && runtime.source !== "bridge") {
-    return [
-      "",
-      "该任务由其他 Codex 入口发起，飞书不会自动推送执行进展。",
-      "发送 status 刷新最新状态；发送 open 刷新完整进展。"
-    ];
-  }
   if (runtime.kind === "unknown") {
     return [
       "",
-      "当前 App Server 无法确认该任务的实时状态。",
-      "稍后发送 status 或 open 主动刷新。"
+      "Bridge 无法确认本机 Desktop/CLI 是否正在执行该 Task。",
+      "请确认其他入口已停止后再续聊；“最后记录”不代表当前状态。"
     ];
   }
   if (runtime.kind === "completed") {
@@ -293,10 +287,10 @@ function formatLatestProgress(thread = {}) {
 function activityLabel(item = {}) {
   const type = String(item.type || "").toLowerCase();
   const running = isRunningStatus(item.status);
-  if (type === "commandexecution") return running ? "正在执行命令" : "最近完成命令执行";
-  if (type === "mcptoolcall") return running ? "正在调用工具" : "最近完成工具调用";
-  if (type === "filechange") return running ? "正在修改文件" : "最近完成文件修改";
-  if (type === "websearch") return running ? "正在进行网络搜索" : "最近完成网络搜索";
+  if (type === "commandexecution") return running ? "最后记录为命令执行中" : "最近完成命令执行";
+  if (type === "mcptoolcall") return running ? "最后记录为工具调用中" : "最近完成工具调用";
+  if (type === "filechange") return running ? "最后记录为文件修改中" : "最近完成文件修改";
+  if (type === "websearch") return running ? "最后记录为网络搜索中" : "最近完成网络搜索";
   return "";
 }
 

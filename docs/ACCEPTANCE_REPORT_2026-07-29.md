@@ -122,3 +122,21 @@ tokenStatus: not_configured
 - 系统 `openfiles` 未启用本地对象列表，无法追溯失败发生时的唯一持锁进程。
 
 该问题由 `0.2.0-rc.5` 接续修复并重新验收；RC4 不进入正式版发布流程。
+
+## RC5 远程复验
+
+### 升级结论
+
+**通过。** 阿里云 Windows 验收机按普通用户流程从全局 `0.2.0-rc.3` 升级到 `0.2.0-rc.5`，未再次出现 `EBUSY`。安装向导成功复用现有飞书 Profile、工作目录和配对状态，服务启动并在 30 秒内进入 ready；`doctor --tasks` 成功解释白名单、worktree 和归档过滤。
+
+### 状态一致性结论
+
+**不通过。** 实际正在其他 Codex 入口执行的 Task，在 Bridge 的独立 App Server 中显示为 `thread.status = notLoaded`、最后 turn `interrupted`。飞书 `tasks` 全部显示 `Unknown`，`open` / `status` 显示 `Interrupted`。这证明持久化 turn 不能作为另一个 App Server 实时运行状态的可靠依据。
+
+RC6 将实时状态与最后持久化记录分离，停止承诺外部任务实时同步；RC5 不进入正式版发布流程。
+
+## RC6 本机最小并发验证（2026-07-30）
+
+**结论：Codex 不提供跨 App Server 并发保护。** 在 Windows、Codex CLI 0.144.3 上，第一个 App Server 已收到 `turn/started` 后，第二个 App Server 仍成功对同一 Task 执行 `turn/start`，两轮最终都返回完成。第二个入口加载 Task 时将第一轮记录为 `interrupted`，但第一轮实际仍继续执行并返回结果。
+
+因此 RC6 不再用 `idle`、`notLoaded` 或最后 turn 判断其他入口的实时状态。状态统一为 `Waiting User`、`Running（Bridge）` 和 `Unknown（Desktop/CLI）`；历史 turn 仅显示为“最后记录”。测试 Task 已在验证结束后归档。阿里云 Codex CLI 0.145.0 仍需按人工流程复验显示结果。

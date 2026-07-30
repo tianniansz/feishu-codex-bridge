@@ -10,12 +10,12 @@
 npm.cmd pack
 ```
 
-命令会生成类似 `feishu-codex-bridge-0.2.0-rc.5.tgz` 的文件。
+命令会生成类似 `feishu-codex-bridge-0.2.0-rc.6.tgz` 的文件。
 
 ## 全局安装
 
 ```powershell
-npm.cmd install -g .\feishu-codex-bridge-0.2.0-rc.5.tgz
+npm.cmd install -g .\feishu-codex-bridge-0.2.0-rc.6.tgz
 feishu-codex-bridge version
 feishu-codex-bridge help
 feishu-codex-bridge setup
@@ -33,6 +33,13 @@ feishu-codex-bridge stop
 ```
 
 配置应位于 `%LOCALAPPDATA%\FeishuCodexBridge`，而不是 npm 全局包目录。
+
+飞书侧还需确认：
+
+- `tasks` 标题为“本机 Codex Task”。
+- 普通已有 Task 显示 `Unknown（Desktop/CLI）` 时会提示确认其他入口后再续聊。
+- 飞书发起执行后显示 `Running（Bridge）`，重复消息会被拒绝。
+- `Interrupted`、`Completed`、`In Progress` 只出现在“最后记录”，不冒充当前状态。
 
 ## 自动启动
 

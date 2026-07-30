@@ -9,7 +9,7 @@ import { DeveloperProjectStore } from "../src/core/projectStore.js";
 import { DeveloperRouter } from "../src/core/router.js";
 import { DeveloperJobManager } from "../src/core/jobManager.js";
 import { browseTasks, parseTaskQuery } from "../src/core/taskBrowser.js";
-import { formatThreadStatus, getThreadRuntimeState } from "../src/core/taskFormatter.js";
+import { formatNewTaskReply, formatThreadStatus, getThreadRuntimeState } from "../src/core/taskFormatter.js";
 import { EventStore } from "../src/core/eventStore.js";
 import { mapLarkCliEvent } from "../src/lark/eventAdapter.js";
 
@@ -149,6 +149,9 @@ test("Router 只列出允许目录的 Task 并能续聊", async () => {
   const list = await router.handle(event);
   assert.match(list.reply, /Allowed Task/);
   assert.doesNotMatch(list.reply, /Blocked Task/);
+  assert.match(list.reply, /本机 Codex Task/);
+  assert.match(list.reply, /Unknown（Desktop\/CLI）/);
+  assert.match(list.reply, /查看 Bridge 状态和最后记录/);
 
   const opened = await router.handle({ ...event, text: "open 1" });
   assert.equal(opened.ok, true);
@@ -185,7 +188,7 @@ test("Task 列表支持关键词、项目过滤和分页", () => {
   assert.equal(result.threads[0].id, "3");
 });
 
-test("外部发起的持久化 inProgress Task 显示执行中并提示主动刷新", () => {
+test("持久化 inProgress 只作为最后记录，不推断外部实时状态", () => {
   const thread = {
     id: "external-running",
     status: { type: "notLoaded" },
@@ -197,24 +200,70 @@ test("外部发起的持久化 inProgress Task 显示执行中并提示主动刷
   };
 
   assert.deepEqual(getThreadRuntimeState(thread), {
-    kind: "running",
-    label: "Running（外部发起）",
-    source: "persisted-turn"
+    kind: "unknown",
+    label: "Unknown（Desktop/CLI）",
+    source: "not-loaded",
+    recorded: { kind: "running", label: "In Progress" }
   });
   const message = formatThreadStatus(thread, { refreshedAt: new Date("2026-07-29T08:00:00Z") });
-  assert.match(message, /Task 状态已刷新/);
-  assert.match(message, /Running（外部发起）/);
-  assert.match(message, /正在执行命令/);
-  assert.match(message, /发送 status 刷新最新状态/);
+  assert.match(message, /Task 信息已刷新/);
+  assert.match(message, /状态：🟠 Unknown（Desktop\/CLI）/);
+  assert.match(message, /最后记录：In Progress/);
+  assert.match(message, /最后记录为命令执行中/);
+  assert.match(message, /“最后记录”不代表当前状态/);
+  assert.doesNotMatch(message, /Running（外部发起）/);
 });
 
-test("notLoaded 且没有运行证据的 Task 显示 Unknown", () => {
+test("notLoaded 且没有持久化记录的 Task 显示其他入口状态未知", () => {
   const runtime = getThreadRuntimeState({ status: { type: "notLoaded" }, turns: [] });
   assert.equal(runtime.kind, "unknown");
-  assert.equal(runtime.label, "Unknown");
+  assert.equal(runtime.label, "Unknown（Desktop/CLI）");
+  assert.equal(runtime.recorded.label, "暂无持久化记录");
 });
 
-test("Router 可刷新外部任务状态并阻止执行中追加消息", async () => {
+test("持久化 Interrupted 不冒充当前实时状态", () => {
+  const thread = {
+    status: { type: "notLoaded" },
+    turns: [{ id: "turn-1", status: "interrupted", items: [] }]
+  };
+  const runtime = getThreadRuntimeState(thread);
+  const message = formatThreadStatus(thread);
+
+  assert.equal(runtime.kind, "unknown");
+  assert.equal(runtime.recorded.label, "Interrupted");
+  assert.match(message, /状态：🟠 Unknown（Desktop\/CLI）/);
+  assert.match(message, /最后记录：Interrupted/);
+  assert.doesNotMatch(message, /状态：.*Interrupted/);
+});
+
+test("独立 App Server 返回 idle 也不冒充 Waiting User", () => {
+  const runtime = getThreadRuntimeState({
+    status: { type: "idle" },
+    turns: [{ status: "interrupted" }]
+  });
+
+  assert.equal(runtime.kind, "unknown");
+  assert.equal(runtime.label, "Unknown（Desktop/CLI）");
+  assert.equal(runtime.recorded.label, "Interrupted");
+});
+
+test("Bridge 新建且尚未执行的 Task 显示 Waiting User", () => {
+  const message = formatNewTaskReply({ id: "bridge-new", status: { type: "idle" }, turns: [] });
+  assert.match(message, /🟢 Waiting User/);
+});
+
+test("只有 Bridge 管理的 Job 显示确定 Running", () => {
+  const runtime = getThreadRuntimeState({
+    status: { type: "notLoaded" },
+    turns: [{ status: "inProgress" }]
+  }, { bridgeRunning: true });
+
+  assert.equal(runtime.kind, "running");
+  assert.equal(runtime.label, "Running（Bridge）");
+  assert.equal(runtime.source, "bridge");
+});
+
+test("Router 分离外部任务实时状态与最后记录，不伪装并发保护", async () => {
   const sent = [];
   const runningThread = {
     id: "external-running",
@@ -230,7 +279,10 @@ test("Router 可刷新外部任务状态并阻止执行中追加消息", async (
   const codexClient = {
     async listThreads() { return [runningThread]; },
     async readThread() { return runningThread; },
-    async sendMessage(threadId, text) { sent.push({ threadId, text }); }
+    async sendMessage(threadId, text) {
+      sent.push({ threadId, text });
+      return { ok: true, text: "Codex reply", turn: { id: "turn-2" } };
+    }
   };
   const sessionStore = memorySessionStore();
   const router = new DeveloperRouter({
@@ -242,18 +294,18 @@ test("Router 可刷新外部任务状态并阻止执行中追加消息", async (
 
   await router.handle({ ...event, text: "tasks" });
   const opened = await router.handle({ ...event, text: "open 1" });
-  assert.match(opened.reply, /Running（外部发起）/);
-  assert.match(opened.reply, /普通消息不会追加/);
-  assert.match(opened.reply, /飞书不会自动推送执行进展/);
+  assert.match(opened.reply, /Unknown（Desktop\/CLI）/);
+  assert.match(opened.reply, /最后记录：In Progress/);
+  assert.match(opened.reply, /请先确认本机 Desktop\/CLI 没有执行/);
+  assert.doesNotMatch(opened.reply, /普通消息不会追加/);
 
   const status = await router.handle({ ...event, text: "status" });
-  assert.match(status.reply, /Task 状态已刷新/);
-  assert.match(status.reply, /发送 status 刷新最新状态/);
+  assert.match(status.reply, /Task 信息已刷新/);
+  assert.match(status.reply, /最后记录：In Progress/);
 
-  const blocked = await router.handle({ ...event, text: "继续处理" });
-  assert.equal(blocked.ok, false);
-  assert.match(blocked.reply, /仍在执行中/);
-  assert.deepEqual(sent, []);
+  const continued = await router.handle({ ...event, text: "继续处理" });
+  assert.equal(continued.ok, true);
+  assert.deepEqual(sent, [{ threadId: "external-running", text: "继续处理" }]);
 });
 
 test("飞书审批码只允许原会话处理", async () => {
