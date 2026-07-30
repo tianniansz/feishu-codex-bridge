@@ -162,3 +162,7 @@ RC6 将实时状态与最后持久化记录分离，停止承诺外部任务实�
 正式版版本号更新为 `0.2.0` 后，本地完整测试 58/58、语法检查 28 个文件、npm 包内容审计 43 个文件通过。
 
 npm 上无作用域的 `feishu-codex-bridge` 已属于其他维护者；正式包改用用户自有 scope：`@tianniansz/feishu-codex-bridge`。全局 CLI 命令仍为 `feishu-codex-bridge`。
+
+## 0.2.0 正式发布（2026-07-30）
+
+`@tianniansz/feishu-codex-bridge@0.2.0` 已发布到 npm，`latest` 指向 `0.2.0`，公开下载运行返回 `0.2.0`。GitHub 仓库已设为 Public，并创建非草稿、非预发布的 [`v0.2.0` Release](https://github.com/tianniansz/feishu-codex-bridge/releases/tag/v0.2.0)。Release 附件 `tianniansz-feishu-codex-bridge-0.2.0.tgz` 大小为 58,168 字节，SHA-256 为 `D5A03D7295E88EF5F327CFB60B56ED71D23F2B45F4D6E427FC5E9EC5F6B003CA`。
