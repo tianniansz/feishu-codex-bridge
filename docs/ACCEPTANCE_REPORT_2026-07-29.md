@@ -182,3 +182,9 @@ Windows 本机从全局 `0.2.0` 迁移到源码打包的 `0.2.2`。旧 npm scope
 迁移过程中现有飞书 Profile `codex-dev`、允许目录、Codex 登录和飞书配对均被保留；环境自检全部通过，Bridge 启动并收到事件监听 ready marker。飞书发送一次 `tasks` 只收到一条回复，消息重投修复同时通过最终复验。
 
 发布前验证结果：Windows/CLI 相关测试 22/22、JavaScript 语法检查 29 个文件、PowerShell 脚本解析、npm 包内容审计 44 个文件全部通过。
+
+## 0.2.2 正式发布（2026-07-31）
+
+`@tianniansz/feishu-codex-bridge@0.2.2` 已发布到 npm，`latest` 指向 `0.2.2`，从官方公开源全新安装后 CLI 返回 `0.2.2`，npm `dist.shasum` 为 `8f53024cb80aa8461a95f8d6eb3ab1d15a5e63d2`。
+
+GitHub 已创建非草稿、非预发布的 [`v0.2.2` Release](https://github.com/tianniansz/feishu-codex-bridge/releases/tag/v0.2.2)。附件 `tianniansz-feishu-codex-bridge-0.2.2.tgz` 大小为 58,968 字节，SHA-256 为 `6A94096E96C19E5FB839A01E1291C2CE9398A7BF2782EC61C8DC607353F21517`。
