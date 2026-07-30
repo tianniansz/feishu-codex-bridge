@@ -8,12 +8,16 @@ export class EventStore {
     this.queue = Promise.resolve();
   }
 
-  async claim(eventId) {
-    if (!eventId) return true;
+  async claim(eventIds) {
+    const ids = [...new Set((Array.isArray(eventIds) ? eventIds : [eventIds]).filter(Boolean))];
+    if (ids.length === 0) return true;
     const operation = this.queue.then(async () => {
       const data = await this.read();
-      if (data.events.some((event) => event.id === eventId)) return false;
-      data.events.push({ id: eventId, receivedAt: new Date().toISOString() });
+      if (data.events.some((event) => ids.includes(event.id)
+        || (Array.isArray(event.aliases) && event.aliases.some((id) => ids.includes(id))))) {
+        return false;
+      }
+      data.events.push({ id: ids[0], aliases: ids.slice(1), receivedAt: new Date().toISOString() });
       data.events = data.events.slice(-this.maxEntries);
       await this.write(data);
       return true;

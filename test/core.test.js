@@ -61,6 +61,7 @@ test("飞书事件适配器提取文本、用户和群聊类型", () => {
         message_id: "om_1",
         chat_id: "oc_1",
         chat_type: "group",
+        create_time: "1785401940000",
         message_type: "text",
         content: JSON.stringify({ text: "tasks" })
       }
@@ -75,7 +76,8 @@ test("飞书事件适配器提取文本、用户和群聊类型", () => {
     senderId: "ou_1",
     senderType: "",
     chatType: "group",
-    eventId: "evt_1"
+    eventId: "evt_1",
+    createTime: "1785401940000"
   });
 });
 
@@ -85,6 +87,15 @@ test("重复飞书事件只允许处理一次", async (t) => {
   const store = new EventStore(path.join(directory, "events.json"));
   assert.equal(await store.claim("evt_1"), true);
   assert.equal(await store.claim("evt_1"), false);
+});
+
+test("同一飞书消息的任一别名重复时拒绝再次处理", async (t) => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "feishu-codex-events-"));
+  t.after(() => fs.rm(directory, { recursive: true, force: true }));
+  const store = new EventStore(path.join(directory, "events.json"));
+
+  assert.equal(await store.claim(["evt_1", "om_1", "fingerprint_1"]), true);
+  assert.equal(await store.claim(["evt_2", "om_2", "fingerprint_1"]), false);
 });
 
 test("项目存储只保留允许根目录内的 Task", () => {

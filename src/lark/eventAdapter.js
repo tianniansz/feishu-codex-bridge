@@ -7,7 +7,8 @@ export function mapLarkCliEvent(raw) {
     senderId: raw?.sender_id || sender?.sender_id?.open_id || sender?.sender_id?.user_id || "",
     senderType: raw?.sender_type || sender?.sender_type || "",
     chatType: raw?.chat_type || message?.chat_type || "",
-    eventId: raw?.event_id || raw?.header?.event_id || ""
+    eventId: raw?.event_id || raw?.header?.event_id || "",
+    createTime: raw?.create_time || message?.create_time || ""
   };
 
   const eventType = raw?.type || raw?.event_type || raw?.header?.event_type;

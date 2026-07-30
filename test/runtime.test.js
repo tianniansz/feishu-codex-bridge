@@ -8,7 +8,8 @@ import { PassThrough } from "node:stream";
 import { spawnSync } from "node:child_process";
 import test from "node:test";
 import { RuntimeControl } from "../src/runtimeControl.js";
-import { LarkEventRunner } from "../src/lark/eventRunner.js";
+import { EventStore } from "../src/core/eventStore.js";
+import { LarkEventRunner, eventDedupKeys } from "../src/lark/eventRunner.js";
 
 test("运行控制写入 ready 状态并响应 stop 请求", async (t) => {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), "feishu-codex-runtime-"));
@@ -77,6 +78,54 @@ test("单条飞书消息回复失败不会退出事件服务", async () => {
     message_type: "text",
     content: "pair 123456"
   })));
+});
+
+test("不同事件和消息 ID 的同一原始消息共享去重指纹", () => {
+  const base = {
+    chatId: "oc_test",
+    senderId: "ou_test",
+    createTime: "1785401940000",
+    text: "Tasks"
+  };
+  const first = eventDedupKeys({ ...base, eventId: "evt_1", messageId: "om_1" });
+  const replay = eventDedupKeys({ ...base, eventId: "evt_2", messageId: "om_2" });
+
+  assert.equal(first.at(-1), replay.at(-1));
+  assert.notEqual(first[0], replay[0]);
+  assert.notEqual(first[1], replay[1]);
+});
+
+test("事件流重投同一原始消息时只路由和回复一次", async (t) => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "feishu-codex-replay-"));
+  t.after(() => fs.rm(directory, { recursive: true, force: true }));
+  let routed = 0;
+  const replies = [];
+  const runner = new LarkEventRunner({
+    config: { allowGroupChats: false },
+    client: { async replyText(messageId, text) { replies.push({ messageId, text }); } },
+    router: { async handle() { routed += 1; return { reply: "task list" }; } },
+    accessStore: {
+      async tryPair() { return { matched: false }; },
+      async isAuthorized() { return true; }
+    },
+    eventStore: new EventStore(path.join(directory, "events.json"))
+  });
+  const base = {
+    type: "im.message.receive_v1",
+    chat_id: "oc_test",
+    sender_id: "ou_test",
+    sender_type: "user",
+    chat_type: "p2p",
+    message_type: "text",
+    create_time: "1785401940000",
+    content: "Tasks"
+  };
+
+  await runner.handleLine(JSON.stringify({ ...base, event_id: "evt_1", message_id: "om_1" }));
+  await runner.handleLine(JSON.stringify({ ...base, event_id: "evt_2", message_id: "om_2" }));
+
+  assert.equal(routed, 1);
+  assert.deepEqual(replies, [{ messageId: "om_1", text: "task list" }]);
 });
 
 test("Windows 助手可识别 Profile 状态并规范化启动环境", { skip: process.platform !== "win32" }, () => {

@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { mapLarkCliEvent } from "./eventAdapter.js";
 import { logger } from "../logger.js";
 import { windowsCommand } from "./client.js";
@@ -77,7 +78,7 @@ export class LarkEventRunner {
 
     const event = mapLarkCliEvent(raw);
     if (event.type === "ignored") return;
-    if (!await this.eventStore.claim(event.eventId || event.messageId)) return;
+    if (!await this.eventStore.claim(eventDedupKeys(event))) return;
     if (event.type !== "text") {
       if (event.messageId) await this.reply(event, event.reason || "暂时只支持文本消息。");
       return;
@@ -118,4 +119,13 @@ export class LarkEventRunner {
   reply(event, text) {
     return this.client.replyText(event.messageId, text, event.messageId, { chatId: event.chatId });
   }
+}
+
+export function eventDedupKeys(event) {
+  const keys = [event.eventId, event.messageId].filter(Boolean);
+  if (event.createTime && event.chatId && event.senderId && event.text) {
+    const fingerprint = [event.chatId, event.senderId, event.createTime, event.text].join("\0");
+    keys.push(`message-fingerprint:${createHash("sha256").update(fingerprint).digest("hex")}`);
+  }
+  return keys;
 }
