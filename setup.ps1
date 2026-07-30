@@ -78,7 +78,7 @@ function Ensure-Node {
 }
 
 function Install-And-RunBridgeCli {
-  $UseCli = Read-WithDefault "是否安装或升级 Feishu Codex Bridge 命令行工具？安装后可使用 feishu-codex-bridge 管理服务。输入 y 或 n" "y"
+  $UseCli = Read-WithDefault "是否安装或升级 Feishu Codex Bridge 命令行工具？输入 y 或 n" "y"
   if ($UseCli -notmatch "^(y|yes)$") { return }
 
   $TempDir = [IO.Path]::GetTempPath()
