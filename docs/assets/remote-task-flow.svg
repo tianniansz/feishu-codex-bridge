@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="520" viewBox="0 0 1200 520" role="img" aria-labelledby="title desc">
+  <title id="title">Feishu Codex Bridge 四步流程演示</title>
+  <desc id="desc">从飞书查看本机任务、打开任务、发送续聊指令，到手机审批并收到结果的流程。</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#081525"/><stop offset="1" stop-color="#102d4a"/></linearGradient>
+    <linearGradient id="card" x1="0" x2="1"><stop stop-color="#153556"/><stop offset="1" stop-color="#0f2742"/></linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="8" stdDeviation="9" flood-color="#00101d" flood-opacity=".35"/></filter>
+  </defs>
+  <rect width="1200" height="520" rx="28" fill="url(#bg)"/>
+  <text x="60" y="68" fill="#f3f8ff" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="30" font-weight="700">从飞书继续本机已有的 Codex Task</text>
+  <text x="60" y="104" fill="#a7c2dc" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="18">流程演示（示意） · Bridge 只通过本机 stdio 连接 Codex App Server</text>
+  <g stroke="#3f8cff" stroke-width="3" fill="none" opacity=".8">
+    <path d="M286 278H330"/><path d="M570 278H614"/><path d="M854 278H898"/>
+  </g>
+  <g fill="#60b6ff"><path d="M330 278l-11-7v14z"/><path d="M614 278l-11-7v14z"/><path d="M898 278l-11-7v14z"/></g>
+  <g filter="url(#shadow)">
+    <rect x="60" y="150" width="226" height="260" rx="18" fill="url(#card)" stroke="#2d5d8d"/>
+    <circle cx="92" cy="188" r="18" fill="#39a5ff"/><text x="86" y="195" fill="#fff" font-family="Segoe UI" font-size="19" font-weight="700">1</text>
+    <text x="122" y="192" fill="#eef7ff" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="20" font-weight="700">查看任务</text>
+    <rect x="84" y="225" width="178" height="42" rx="9" fill="#0a1d31"/>
+    <text x="102" y="252" fill="#9fcef7" font-family="Consolas, monospace" font-size="18">tasks</text>
+    <rect x="84" y="284" width="178" height="84" rx="10" fill="#0d2238"/>
+    <text x="100" y="314" fill="#d9edff" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="16">1  登录页修复</text>
+    <text x="100" y="341" fill="#8fb2d1" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="15">Waiting User</text>
+  </g>
+  <g filter="url(#shadow)">
+    <rect x="344" y="150" width="226" height="260" rx="18" fill="url(#card)" stroke="#2d5d8d"/>
+    <circle cx="376" cy="188" r="18" fill="#39a5ff"/><text x="370" y="195" fill="#fff" font-family="Segoe UI" font-size="19" font-weight="700">2</text>
+    <text x="406" y="192" fill="#eef7ff" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="20" font-weight="700">打开并续聊</text>
+    <rect x="368" y="225" width="178" height="42" rx="9" fill="#0a1d31"/>
+    <text x="386" y="252" fill="#9fcef7" font-family="Consolas, monospace" font-size="18">open 1</text>
+    <rect x="368" y="284" width="178" height="84" rx="10" fill="#0d2238"/>
+    <text x="384" y="315" fill="#d9edff" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="15">继续修复登录页，</text>
+    <text x="384" y="341" fill="#d9edff" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="15">并运行相关测试</text>
+  </g>
+  <g filter="url(#shadow)">
+    <rect x="628" y="150" width="226" height="260" rx="18" fill="url(#card)" stroke="#2d5d8d"/>
+    <circle cx="660" cy="188" r="18" fill="#f0aa3e"/><text x="654" y="195" fill="#fff" font-family="Segoe UI" font-size="19" font-weight="700">3</text>
+    <text x="690" y="192" fill="#eef7ff" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="20" font-weight="700">手机审批</text>
+    <rect x="652" y="225" width="178" height="42" rx="9" fill="#0a1d31"/>
+    <text x="670" y="252" fill="#ffd89a" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="17">需要确认操作</text>
+    <rect x="652" y="294" width="78" height="42" rx="9" fill="#1c8e56"/>
+    <text x="671" y="321" fill="#fff" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="16">批准</text>
+    <rect x="746" y="294" width="84" height="42" rx="9" fill="#7b3441"/>
+    <text x="765" y="321" fill="#fff" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="16">拒绝</text>
+  </g>
+  <g filter="url(#shadow)">
+    <rect x="912" y="150" width="226" height="260" rx="18" fill="url(#card)" stroke="#2d5d8d"/>
+    <circle cx="944" cy="188" r="18" fill="#43bf7b"/><text x="938" y="195" fill="#fff" font-family="Segoe UI" font-size="19" font-weight="700">4</text>
+    <text x="974" y="192" fill="#eef7ff" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="20" font-weight="700">收取结果</text>
+    <rect x="936" y="225" width="178" height="42" rx="9" fill="#0a1d31"/>
+    <text x="954" y="252" fill="#9ce9bd" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="17">测试通过</text>
+    <rect x="936" y="284" width="178" height="84" rx="10" fill="#0d2238"/>
+    <text x="952" y="315" fill="#d9edff" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="15">进度、最终回复与</text>
+    <text x="952" y="341" fill="#d9edff" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="15">审批结果回到飞书</text>
+  </g>
+  <text x="60" y="467" fill="#8eaac5" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="16">默认：仅已配对用户、仅私聊、目录白名单、单次审批码。</text>
+</svg>

@@ -1,10 +1,42 @@
 # Feishu Codex Bridge
 
-通过自己的飞书机器人，远程查看并续聊自己电脑上已经存在的 Codex Task（支持 Desktop 和 CLI）。
+![本机 Codex 与飞书之间的安全桥接示意](docs/assets/remote-codex-hero.png)
 
-项目刻意聚焦于一个场景：**离开电脑后，从飞书安全地接着聊现有 Codex Task**。它不是通用 Coding Agent 网关，也不接管 Codex 账号和凭证。
+> 离开电脑后，用自己的飞书机器人安全续聊本机已有的 Codex Task。
 
-> 当前版本面向 Windows 10/11。项目运行在用户自己的电脑上，不托管 Codex 凭证，也不暴露 Codex App Server 网络端口。
+支持继续由 **Codex Desktop 或 Codex CLI** 创建的 Task；可在手机上查看状态、补充指令并批准单次操作。项目运行在自己的 Windows 电脑上，不托管 Codex 凭证，也不暴露 Codex App Server 网络端口。
+
+> Bridge 运行时需要已安装并登录的 Codex CLI（使用 `codex app-server`）；Codex Desktop 创建的 Task 同样可以被继续。
+
+## 三分钟开始
+
+适用于 Windows 10/11，准备好飞书账号和可用网络后运行：
+
+```powershell
+npm install -g @tianniansz/feishu-codex-bridge
+feishu-codex-bridge setup
+```
+
+安装向导会检查 Node.js 20+、Codex CLI、飞书官方 `lark-cli`，引导选择自己的飞书机器人和允许远程操作的目录；完成后会自动启动 Bridge 并生成一次性配对码。
+
+```text
+pair 123456
+tasks
+open 1
+继续完成这个任务，并运行相关测试
+```
+
+从 `0.2.2` 起，后续升级使用：
+
+```powershell
+feishu-codex-bridge upgrade
+```
+
+## 流程演示
+
+![从飞书继续本机已有 Codex Task 的四步流程示意](docs/assets/remote-task-flow.svg)
+
+> 上图是操作流程示意，不是飞书产品截图。真实使用时，Task、进度、单次审批和最终结果均在你的飞书会话中呈现。
 
 ## 功能
 
@@ -18,7 +50,7 @@
 - 长消息自动分段
 - 一键配置、自检、后台启停
 
-## 快速开始
+## 从源码安装
 
 准备一台 Windows 电脑、飞书账号和可用网络，然后运行：
 
@@ -91,16 +123,7 @@ feishu-codex-bridge config edit         # 编辑配置
 feishu-codex-bridge service install     # 登录 Windows 后自动启动
 ```
 
-正式版可直接通过 npm 安装：
-
-```powershell
-npm install -g @tianniansz/feishu-codex-bridge
-feishu-codex-bridge setup
-```
-
 从 `0.2.2` 开始，后续升级使用 `feishu-codex-bridge upgrade`，不再通过 npm 原地替换正在使用的旧目录。
-
-旧 PowerShell 脚本仍可用于源码开发和从仓库安装。
 
 ## 安全默认值
 
